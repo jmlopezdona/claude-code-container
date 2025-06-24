@@ -1,0 +1,38 @@
+# Environment files with sensitive data
+.env
+
+# Local workspace directory
+workspace/
+
+# Docker volumes and build cache
+.docker/
+*.log
+
+# Operating System files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Temporary files
+*.tmp
+*.temp
+
+# Local configuration overrides
+docker-compose.override.yml
+
+# SSH keys (if accidentally placed in project)
+*.pem
+*.key
+id_rsa*
+known_hosts

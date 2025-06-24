@@ -10,11 +10,11 @@ services:
       - ./workspace:/workspace
       - ~/.ssh:/tmp/ssh_key:ro
     environment:
-      - GIT_USER_NAME=${GIT_USER_NAME:-Claude Docker User}
-      - GIT_USER_EMAIL=${GIT_USER_EMAIL:-claude-docker@example.com}
-      - CLAUDE_YOLO_MODE=${CLAUDE_YOLO_MODE:-false}
-      - GIT_REPO_URL=${GIT_REPO_URL:-}
-      - GIT_HOST_DOMAIN=${GIT_HOST_DOMAIN:-}
+      - GIT_USER_NAME
+      - GIT_USER_EMAIL
+      - CLAUDE_YOLO_MODE
+      - GIT_REPO_URL
+      - GIT_HOST_DOMAIN
     stdin_open: true
     tty: true
 
@@ -29,10 +29,10 @@ services:
       - ./workspace:/workspace
       - ~/.ssh:/tmp/ssh_key:ro
     environment:
-      - GIT_USER_NAME=${GIT_USER_NAME:-Claude Docker User}
-      - GIT_USER_EMAIL=${GIT_USER_EMAIL:-claude-docker@example.com}
-      - CLAUDE_YOLO_MODE=${CLAUDE_YOLO_MODE:-false}
-      - GIT_REPO_URL=${GIT_REPO_URL:-}
-      - GIT_HOST_DOMAIN=${GIT_HOST_DOMAIN:-}
+      - GIT_USER_NAME
+      - GIT_USER_EMAIL
+      - CLAUDE_YOLO_MODE
+      - GIT_REPO_URL
+      - GIT_HOST_DOMAIN
     stdin_open: true
     tty: true

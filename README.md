@@ -18,6 +18,28 @@ The goal is to provide an isolated and reproducible environment for Claude Code 
 - **Claude Code Subscription or Anthropic API KEY** Required for Claude Code initial configuration
 - **Configuration Directory on Host:** An empty directory on your host system where Claude Code's persistent configuration will be saved. Example: `~/.claude-code-container`.
 
+## 2.1. Environment Configuration
+
+This project uses environment variables for configuration. Before using the containers:
+
+1. **Copy the environment template:**
+   ```bash
+   cp .env.example .env
+   ```
+
+2. **Edit the `.env` file** with your actual values:
+   ```bash
+   nano .env  # or your preferred editor
+   ```
+
+3. **Key variables to configure:**
+   - `GIT_USER_NAME` and `GIT_USER_EMAIL`: Required for Git commits
+   - `GIT_HOST_DOMAIN`: Required for SSH authentication (e.g., github.com)
+   - `CLAUDE_YOLO_MODE`: Set to `true` only if you want to enable dangerous operations
+   - `GIT_REPO_URL`: Optional, for automatic repository cloning
+
+**Note:** The `.env` file is ignored by Git to protect your sensitive information.
+
 ## 3. Building the Docker Images
 
 ### 3.1. Available Image Variants
@@ -42,7 +64,7 @@ This repository provides multiple Docker image variants for different developmen
 ./build.sh -t v1.0.0
 ```
 
-#### Option 2: Using Docker Compose
+#### Option 2: Using Docker Compose (Recommended for development)
 
 ```bash
 # Build all services
@@ -50,6 +72,9 @@ docker-compose build
 
 # Build specific service
 docker-compose build claude-python
+
+# Run services (requires .env file)
+docker-compose up claude-python
 ```
 
 #### Option 3: Manual Docker Build
@@ -139,50 +164,35 @@ The Claude Code container can be run in two main ways:
 
 Claude Code starts and waits for your commands directly in the terminal.
 
-**Examples (with persistent configuration):**
+**Examples:**
 
 ```bash
-# Base image
-docker run --rm -it \
-    -v ~/.claude-code-container:/home/node \
-    -v "$(pwd)/my_local_project:/workspace" \
-    -e GIT_USER_NAME="Your Name" \
-    -e GIT_USER_EMAIL="your@email.com" \
-    claude-code-base
+# Using docker-compose (recommended - uses .env file automatically)
+docker-compose run --rm claude-python
 
-# Python image
+# Or with docker run (requires manual environment variables)
 docker run --rm -it \
     -v ~/.claude-code-container:/home/node \
     -v "$(pwd)/my_python_project:/workspace" \
-    -e GIT_USER_NAME="Your Name" \
-    -e GIT_USER_EMAIL="your@email.com" \
+    --env-file .env \
     claude-code-python
-
-# Using docker-compose
-docker-compose run --rm claude-python
 ```
 
 ### 6.2. Autonomous Mode (Non-Interactive)
 
 You pass a prompt or command directly to Claude Code, and the container will close once the task is complete.
 
-**Examples (with persistent configuration):**
+**Examples:**
 
 ```bash
-# Base image
-docker run --rm \
-    -v ~/.claude-code-container:/home/node \
-    -v "$(pwd)/my_local_project:/workspace" \
-    -e GIT_USER_NAME="Your Name" \
-    -e GIT_USER_EMAIL="your@email.com" \
-    claude-code-base "Summarize the README.md file"
+# Using docker-compose (recommended)
+docker-compose run --rm claude-python "Help me optimize this Python script"
 
-# Python image
+# Or with docker run
 docker run --rm \
     -v ~/.claude-code-container:/home/node \
     -v "$(pwd)/my_python_project:/workspace" \
-    -e GIT_USER_NAME="Your Name" \
-    -e GIT_USER_EMAIL="your@email.com" \
+    --env-file .env \
     claude-code-python "Help me optimize this Python script"
 ```
 

@@ -6,7 +6,7 @@ FROM claude-code-base:latest
 # Switch back to root to install packages
 USER root
 
-# Install Python and development tools
+# Install Python 3.11 and development tools
 RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \
@@ -17,7 +17,7 @@ RUN apt-get update && apt-get install -y \
 
 # Create python alias and upgrade pip
 RUN ln -sf /usr/bin/python3 /usr/bin/python \
-    && python -m pip install --upgrade pip
+    && python -m pip install --upgrade pip --break-system-packages
 
 # Switch back to non-root user
 USER node
