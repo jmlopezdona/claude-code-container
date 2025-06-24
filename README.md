@@ -1,4 +1,4 @@
-# Secure and Configurable Claude Code Execution with Docker
+# Claude Code Container
 
 This document describes how to build and use a Docker image to run Claude Code securely and configurably. The solution allows working with Git repositories (public and private via SSH), mounting local workspaces, activating Claude Code's YOLO mode, and persisting Claude Code's initial configuration to avoid repeating it.
 
