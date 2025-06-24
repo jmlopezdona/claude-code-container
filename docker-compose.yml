@@ -7,14 +7,16 @@ services:
       dockerfile: Dockerfile
     image: claude-code-base:latest
     volumes:
-      - ./workspace:/workspace
-      - ~/.ssh:/tmp/ssh_key:ro
+      - ${WORKSPACE_DIR:-./workspace}:/workspace
+      - ${SSH_KEY_DIR:-~/.ssh}:/tmp/ssh_key:ro
     environment:
       - GIT_USER_NAME
       - GIT_USER_EMAIL
       - CLAUDE_YOLO_MODE
       - GIT_REPO_URL
       - GIT_HOST_DOMAIN
+      - WORKSPACE_DIR
+      - SSH_KEY_DIR
     stdin_open: true
     tty: true
 
@@ -26,13 +28,15 @@ services:
     depends_on:
       - claude-base
     volumes:
-      - ./workspace:/workspace
-      - ~/.ssh:/tmp/ssh_key:ro
+      - ${WORKSPACE_DIR:-./workspace}:/workspace
+      - ${SSH_KEY_DIR:-~/.ssh}:/tmp/ssh_key:ro
     environment:
       - GIT_USER_NAME
       - GIT_USER_EMAIL
       - CLAUDE_YOLO_MODE
       - GIT_REPO_URL
       - GIT_HOST_DOMAIN
+      - WORKSPACE_DIR
+      - SSH_KEY_DIR
     stdin_open: true
     tty: true

@@ -35,6 +35,8 @@ This project uses environment variables for configuration. Before using the cont
 3. **Key variables to configure:**
    - `GIT_USER_NAME` and `GIT_USER_EMAIL`: Required for Git commits
    - `GIT_HOST_DOMAIN`: Required for SSH authentication (e.g., github.com)
+   - `WORKSPACE_DIR`: Local directory to mount as workspace (default: ./workspace)
+   - `SSH_KEY_DIR`: Directory containing SSH keys (default: ~/.ssh)
    - `CLAUDE_YOLO_MODE`: Set to `true` only if you want to enable dangerous operations
    - `GIT_REPO_URL`: Optional, for automatic repository cloning
 
@@ -173,7 +175,8 @@ docker-compose run --rm claude-python
 # Or with docker run (requires manual environment variables)
 docker run --rm -it \
     -v ~/.claude-code-container:/home/node \
-    -v "$(pwd)/my_python_project:/workspace" \
+    -v "${WORKSPACE_DIR:-./workspace}:/workspace" \
+    -v "${SSH_KEY_DIR:-~/.ssh}:/tmp/ssh_key:ro" \
     --env-file .env \
     claude-code-python
 ```
@@ -191,7 +194,8 @@ docker-compose run --rm claude-python "Help me optimize this Python script"
 # Or with docker run
 docker run --rm \
     -v ~/.claude-code-container:/home/node \
-    -v "$(pwd)/my_python_project:/workspace" \
+    -v "${WORKSPACE_DIR:-./workspace}:/workspace" \
+    -v "${SSH_KEY_DIR:-~/.ssh}:/tmp/ssh_key:ro" \
     --env-file .env \
     claude-code-python "Help me optimize this Python script"
 ```
