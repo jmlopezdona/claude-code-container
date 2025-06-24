@@ -46,7 +46,27 @@ if [ "$CONFIGURED_SSH" = true ]; then
     echo "SSH configuration completed for $GIT_HOST_DOMAIN."
 fi
 
-# --- 1. Configure Git Global ---
+# --- 1. GitHub CLI Authentication ---
+if [ -n "$GH_TOKEN" ]; then
+    echo "GH_TOKEN environment variable found."
+    # Check if gh is already authenticated
+    if gh auth status &>/dev/null; then
+        echo "GitHub CLI is already authenticated."
+    else
+        echo "Authenticating GitHub CLI with GH_TOKEN..."
+        echo "$GH_TOKEN" | gh auth login --with-token --hostname "$GIT_HOST_DOMAIN"
+        if gh auth status &>/dev/null; then
+            echo "GitHub CLI authenticated successfully."
+        else
+            echo "Warning: GitHub CLI authentication failed. Check GH_TOKEN and permissions."
+        fi
+    fi
+else
+    echo "Info: GH_TOKEN not provided. GitHub CLI will not be automatically authenticated."
+    echo "      You may need to run 'gh auth login' manually if gh commands fail."
+fi
+
+# --- 2. Configure Git Global ---
 cd "$PROJECT_DIR"
 
 # Check if Git configuration already exists
@@ -93,7 +113,7 @@ if [ -z "$FINAL_GIT_NAME" ] || [ -z "$FINAL_GIT_EMAIL" ]; then
     echo "   Specify GIT_USER_NAME and GIT_USER_EMAIL for write operations."
 fi
 
-# --- 2. Prepare Workspace ---
+# --- 3. Prepare Workspace ---
 if [ -n "$GIT_REPO_URL" ]; then
     echo "GIT_REPO_URL specified: $GIT_REPO_URL"
     if [ "$(ls -A .)" ]; then # Check if current directory (PROJECT_DIR) has content
@@ -112,7 +132,7 @@ else
     fi
 fi
 
-# --- 3. Determine arguments for Claude Code (YOLO Mode) ---
+# --- 4. Determine arguments for Claude Code (YOLO Mode) ---
 CLAUDE_COMMAND_ARGS=()
 if [ "$CLAUDE_YOLO_MODE" = "true" ] || [ "$CLAUDE_YOLO_MODE" = "TRUE" ]; then
     echo "YOLO Mode is ENABLED."
@@ -121,7 +141,7 @@ else
     echo "YOLO Mode is DISABLED."
 fi
 
-# --- 4. Execute Claude Code ---
+# --- 5. Execute Claude Code ---
 TARGET_COMMAND_ARGS=("${CLAUDE_COMMAND_ARGS[@]}")
 # If arguments are passed to 'docker run ... my-image [claude_arguments]', they are added here
 if [ "$#" -gt 0 ]; then

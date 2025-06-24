@@ -17,6 +17,7 @@ services:
       - GIT_HOST_DOMAIN
       - WORKSPACE_DIR
       - SSH_KEY_DIR
+      - GH_TOKEN
     stdin_open: true
     tty: true
 
@@ -38,5 +39,6 @@ services:
       - GIT_HOST_DOMAIN
       - WORKSPACE_DIR
       - SSH_KEY_DIR
+      - GH_TOKEN
     stdin_open: true
     tty: true

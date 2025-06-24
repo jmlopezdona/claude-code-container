@@ -39,6 +39,7 @@ This project uses environment variables for configuration. Before using the cont
    - `SSH_KEY_DIR`: Directory containing SSH keys (default: ~/.ssh)
    - `CLAUDE_YOLO_MODE`: Set to `true` only if you want to enable dangerous operations
    - `GIT_REPO_URL`: Optional, for automatic repository cloning
+   - `GH_TOKEN`: Optional, your GitHub Personal Access Token for `gh` CLI authentication. See section below for details.
 
 **Note:** The `.env` file is ignored by Git to protect your sensitive information.
 
@@ -148,7 +149,13 @@ You can configure the container's behavior using the following environment varia
 ### Behavior Variables
 - **`CLAUDE_YOLO_MODE`**: (Optional) Set to `"true"` to activate Claude Code's YOLO mode (`--dangerously-skip-permissions`). Default is `"false"` (safe mode).
 - **`GIT_REPO_URL`**: (Optional) URL of the Git repository to clone if the workspace (`/workspace`) is empty. Example: `"https://github.com/user/repo.git"` or `"git@github.com:user/repo.git"`.
-- **`GIT_HOST_DOMAIN`**: (Required if using SSH) The Git server domain for `ssh-keyscan`. Example: `"github.com"`, `"gitlab.com"`.
+- **`GIT_HOST_DOMAIN`**: (Required if using SSH or `gh` CLI with a non-github.com host) The Git server domain for `ssh-keyscan` and `gh auth`. Example: `"github.com"`, `"gitlab.com"`, `"enterprise.internal"`.
+- **`GH_TOKEN`**: (Optional) Your GitHub Personal Access Token (PAT) to authenticate the GitHub CLI (`gh`).
+  - If provided, the `entrypoint.sh` script will attempt to log in `gh` using this token.
+  - This allows you to use `gh` commands that require authentication, like `gh pr create`, `gh issue create`, etc.
+  - **Required scopes for the PAT**: `repo`, `read:org`, and `gist` are generally recommended for full `gh` functionality.
+  - The authentication status of `gh` is persisted in the `/home/node/.config/gh` directory inside the container, which is covered by the `~/.claude-code-container` host volume mount.
+  - If `GIT_HOST_DOMAIN` is set to something other than `github.com`, `gh` will attempt to authenticate against that enterprise host.
 
 ### When to Use Each Variable
 
@@ -287,6 +294,28 @@ docker run --rm -it \
     claude-code-container "delete all .log files"
 ```
 **Use YOLO mode with extreme caution, especially with write access to your files!**
+
+### 7.5. Using GitHub CLI (`gh`)
+
+If you have provided a `GH_TOKEN` in your `.env` file (or directly via `-e GH_TOKEN=your_token`), the GitHub CLI will be authenticated automatically. You can then use `gh` commands inside the container.
+
+```bash
+# Example: Create a pull request (assuming you are in a git repo with changes)
+docker run --rm -it \
+    -v ~/.claude-code-container:/home/node \
+    -v "$(pwd)/my_local_project:/workspace" \
+    --env-file .env \
+    claude-code-base bash -c "git add . && git commit -m 'feat: new feature' && gh pr create --fill"
+
+# Example: List issues
+docker run --rm -it \
+    -v ~/.claude-code-container:/home/node \
+    -v "$(pwd)/my_local_project:/workspace" \
+    --env-file .env \
+    claude-code-base gh issue list
+```
+- Remember to set `GIT_HOST_DOMAIN` if you are using `gh` with a GitHub Enterprise instance.
+- The `gh` configuration (including authentication) is stored in `/home/node/.config/gh` within the container and will be persisted on your host via the `~/.claude-code-container` volume mount.
 
 ## 8. Important Notes and Additional Considerations
 
