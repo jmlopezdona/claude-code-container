@@ -18,14 +18,49 @@ The goal is to provide an isolated and reproducible environment for Claude Code 
 - **Claude Code Subscription or Anthropic API KEY** Required for Claude Code initial configuration
 - **Configuration Directory on Host:** An empty directory on your host system where Claude Code's persistent configuration will be saved. Example: `~/.claude-code-container`.
 
-## 3. Building the Docker Image
+## 3. Building the Docker Images
 
-1. Save the `Dockerfile` and `entrypoint.sh` files (provided earlier) in an empty directory.
-2. Open a terminal in that directory.
-3. Run the following command to build the image. You can change `claude-code-container` to your preferred name and tag:
-   ```bash
-   docker build -t claude-code-container .
-   ```
+### 3.1. Available Image Variants
+
+This repository provides multiple Docker image variants for different development environments:
+
+- **Base Image** (`containers/Dockerfile`): Node.js + Claude Code CLI - suitable for general usage
+- **Python Image** (`containers/python/Dockerfile`): Base + Python 3, pip, venv, and build tools
+
+### 3.2. Build Options
+
+#### Option 1: Using the Build Script (Recommended)
+
+```bash
+# Build all images
+./build.sh
+
+# Build specific image
+./build.sh -b python -t dev
+
+# Build with custom tag
+./build.sh -t v1.0.0
+```
+
+#### Option 2: Using Docker Compose
+
+```bash
+# Build all services
+docker-compose build
+
+# Build specific service
+docker-compose build claude-python
+```
+
+#### Option 3: Manual Docker Build
+
+```bash
+# Base image
+docker build -t claude-code-base containers/
+
+# Python image (requires base image first)
+docker build -t claude-code-python containers/python/
+```
 
 ## 4. Claude Code Configuration Persistence
 
@@ -104,28 +139,51 @@ The Claude Code container can be run in two main ways:
 
 Claude Code starts and waits for your commands directly in the terminal.
 
-**Example (with persistent configuration):**
+**Examples (with persistent configuration):**
+
 ```bash
+# Base image
 docker run --rm -it \
     -v ~/.claude-code-container:/home/node \
     -v "$(pwd)/my_local_project:/workspace" \
     -e GIT_USER_NAME="Your Name" \
     -e GIT_USER_EMAIL="your@email.com" \
-    claude-code-container
+    claude-code-base
+
+# Python image
+docker run --rm -it \
+    -v ~/.claude-code-container:/home/node \
+    -v "$(pwd)/my_python_project:/workspace" \
+    -e GIT_USER_NAME="Your Name" \
+    -e GIT_USER_EMAIL="your@email.com" \
+    claude-code-python
+
+# Using docker-compose
+docker-compose run --rm claude-python
 ```
 
 ### 6.2. Autonomous Mode (Non-Interactive)
 
 You pass a prompt or command directly to Claude Code, and the container will close once the task is complete.
 
-**Example (with persistent configuration):**
+**Examples (with persistent configuration):**
+
 ```bash
+# Base image
 docker run --rm \
     -v ~/.claude-code-container:/home/node \
     -v "$(pwd)/my_local_project:/workspace" \
     -e GIT_USER_NAME="Your Name" \
     -e GIT_USER_EMAIL="your@email.com" \
-    claude-code-container "Summarize the README.md file"
+    claude-code-base "Summarize the README.md file"
+
+# Python image
+docker run --rm \
+    -v ~/.claude-code-container:/home/node \
+    -v "$(pwd)/my_python_project:/workspace" \
+    -e GIT_USER_NAME="Your Name" \
+    -e GIT_USER_EMAIL="your@email.com" \
+    claude-code-python "Help me optimize this Python script"
 ```
 
 ## 7. Use Cases and Detailed `docker run` Commands
@@ -135,12 +193,21 @@ Make sure to include the configuration volume mount (`-v ~/.claude-code-containe
 ### 7.1. Working with a Local Workspace
 
 ```bash
+# Base image for general projects
 docker run --rm -it \
     -v ~/.claude-code-container:/home/node \
     -v "$(pwd)/my_local_project:/workspace" \
     -e GIT_USER_NAME="My Name" \
     -e GIT_USER_EMAIL="my@email.com" \
-    claude-code-container
+    claude-code-base
+
+# Python image for Python projects
+docker run --rm -it \
+    -v ~/.claude-code-container:/home/node \
+    -v "$(pwd)/my_python_project:/workspace" \
+    -e GIT_USER_NAME="My Name" \
+    -e GIT_USER_EMAIL="my@email.com" \
+    claude-code-python
 ```
 (Replace `$(pwd)/my_local_project` with the path to your project).
 
@@ -215,7 +282,10 @@ docker run --rm -it \
   - Use dedicated SSH keys with minimal necessary privileges.
   - Never include SSH keys directly in your `Dockerfile`.
 - **Modifying `entrypoint.sh`:** If you need more complex logic, you can extend the `entrypoint.sh`.
-- **Technology Stack:** This base Dockerfile is designed for documentation tasks or projects that don't require specific build tools. For projects with specific needs (Python, Java, Node.js with project dependencies, etc.), you'll need to create specialized Dockerfiles that build from this base (`FROM claude-code-container`) and install additional tools and dependencies.
+- **Technology Stack:** Multiple Docker images are provided in the `containers/` directory:
+  - **Base image** (`claude-code-base`): For documentation tasks or general projects
+  - **Python image** (`claude-code-python`): Includes Python 3, pip, venv, and build tools for Python development
+  - For other languages (Java, Go, etc.), create new directories under `containers/` following the same pattern.
 
 ### Important Note for macOS Users with Colima and Volume Permissions
 
