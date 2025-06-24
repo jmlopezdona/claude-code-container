@@ -48,13 +48,49 @@ fi
 
 # --- 1. Configurar Git Global ---
 cd "$PROJECT_DIR"
-if [ -n "$GIT_USER_NAME" ]; then
+
+# Verificar si ya existe configuración Git
+EXISTING_GIT_NAME=$(git config --global user.name 2>/dev/null || echo "")
+EXISTING_GIT_EMAIL=$(git config --global user.email 2>/dev/null || echo "")
+
+# Configurar Git solo si se especifican variables o no existe configuración previa
+if [ -n "$GIT_USER_NAME" ] && [ "$GIT_USER_NAME" != "Claude Docker User" ]; then
     echo "Configurando git user.name a: $GIT_USER_NAME"
     git config --global user.name "$GIT_USER_NAME"
+elif [ -z "$EXISTING_GIT_NAME" ] && [ -n "$GIT_USER_NAME" ]; then
+    echo "Usando git user.name por defecto: $GIT_USER_NAME"
+    echo "⚠️  ADVERTENCIA: Usando configuración genérica. Para commits reales, especifica GIT_USER_NAME."
+    git config --global user.name "$GIT_USER_NAME"
+elif [ -n "$EXISTING_GIT_NAME" ]; then
+    echo "Usando configuración Git existente - user.name: $EXISTING_GIT_NAME"
 fi
-if [ -n "$GIT_USER_EMAIL" ]; then
+
+if [ -n "$GIT_USER_EMAIL" ] && [ "$GIT_USER_EMAIL" != "claude-docker@example.com" ]; then
     echo "Configurando git user.email a: $GIT_USER_EMAIL"
     git config --global user.email "$GIT_USER_EMAIL"
+elif [ -z "$EXISTING_GIT_EMAIL" ] && [ -n "$GIT_USER_EMAIL" ]; then
+    echo "Usando git user.email por defecto: $GIT_USER_EMAIL"
+    echo "⚠️  ADVERTENCIA: Usando configuración genérica. Para commits reales, especifica GIT_USER_EMAIL."
+    git config --global user.email "$GIT_USER_EMAIL"
+elif [ -n "$EXISTING_GIT_EMAIL" ]; then
+    echo "Usando configuración Git existente - user.email: $EXISTING_GIT_EMAIL"
+fi
+
+# Configurar directorio de trabajo como seguro para Git
+# Esto previene el error "dubious ownership" en volúmenes montados
+echo "Configurando directorio de trabajo como seguro para Git..."
+git config --global --add safe.directory /workspace
+git config --global --add safe.directory '*'
+
+# Configurar rama por defecto como 'main' en lugar de 'master'
+git config --global init.defaultBranch main
+
+# Advertencia final si no hay configuración Git válida
+FINAL_GIT_NAME=$(git config --global user.name 2>/dev/null || echo "")
+FINAL_GIT_EMAIL=$(git config --global user.email 2>/dev/null || echo "")
+if [ -z "$FINAL_GIT_NAME" ] || [ -z "$FINAL_GIT_EMAIL" ]; then
+    echo "⚠️  ADVERTENCIA: Configuración Git incompleta. Los commits fallarán sin user.name y user.email."
+    echo "   Especifica GIT_USER_NAME y GIT_USER_EMAIL para operaciones de escritura."
 fi
 
 # --- 2. Preparar Workspace ---

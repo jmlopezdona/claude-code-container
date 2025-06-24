@@ -6,6 +6,7 @@ ARG GIT_USER_NAME_ARG="Claude Docker User"
 ARG GIT_USER_EMAIL_ARG="claude-docker@example.com"
 
 # Variables de entorno que usarán los scripts
+# Nota: Estos son valores genéricos. Para commits reales, especifica tus propios valores
 ENV GIT_USER_NAME=${GIT_USER_NAME_ARG}
 ENV GIT_USER_EMAIL=${GIT_USER_EMAIL_ARG}
 ENV CLAUDE_YOLO_MODE="false"

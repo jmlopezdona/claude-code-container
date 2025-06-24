@@ -75,11 +75,27 @@ El directorio `~/.claude-code-container` (o el que elijas) en tu host contendrá
 
 Puedes configurar el comportamiento del contenedor usando las siguientes variables de entorno al ejecutar `docker run -e VARIABLE=valor ...`:
 
+### Variables Git (Importantes para Commits)
 - **`GIT_USER_NAME`**: Nombre de usuario para las confirmaciones de Git. Ejemplo: `"Tu Nombre"`.
+  - **Obligatorio para commits**: Sin esta variable, Git no puede crear commits
+  - **Autenticación SSH**: Las claves SSH permiten acceso, pero Git aún necesita saber quién eres
+  - Si no se especifica, se usa valor genérico (no recomendado para commits reales)
 - **`GIT_USER_EMAIL`**: Correo electrónico para las confirmaciones de Git. Ejemplo: `"tu@email.com"`.
+  - **Obligatorio para commits**: Git requiere email para identificar el autor
+  - **Recomendación**: Usa el mismo email asociado a tu cuenta de GitHub/GitLab
+
+### Variables de Comportamiento
 - **`CLAUDE_YOLO_MODE`**: (Opcional) Establécelo en `"true"` para activar el modo YOLO de Claude Code (`--dangerously-skip-permissions`). Por defecto es `"false"` (modo seguro).
 - **`GIT_REPO_URL`**: (Opcional) URL del repositorio Git a clonar si el workspace (`/workspace`) está vacío. Ejemplo: `"https://github.com/usuario/repo.git"` o `"git@github.com:usuario/repo.git"`.
 - **`GIT_HOST_DOMAIN`**: (Obligatorio si se usa SSH) El dominio del servidor Git para `ssh-keyscan`. Ejemplo: `"github.com"`, `"gitlab.com"`.
+
+### Cuándo Usar Cada Variable
+
+| Caso de Uso | GIT_USER_NAME | GIT_USER_EMAIL | GIT_HOST_DOMAIN | Claves SSH |
+|-------------|---------------|----------------|-----------------|------------|
+| Solo lectura (clone/pull) | Opcional | Opcional | Sí (si SSH) | Sí (si repo privado) |
+| Escritura (commit/push) | **Obligatorio** | **Obligatorio** | Sí (si SSH) | Sí |
+| Trabajo local sin Git | No necesario | No necesario | No necesario | No necesario |
 
 ## 6. Modos de Ejecución
 
@@ -144,9 +160,21 @@ docker run --rm -it \
 
 Monta tu clave SSH privada (solo lectura es una buena práctica) y especifica el `GIT_HOST_DOMAIN`.
 
+**Solo para lectura (clone/pull):**
 ```bash
-# Asegúrate que tu clave SSH del host (ej: ~/.ssh/id_rsa_github) no tenga passphrase
-# o usa una clave dedicada para esto.
+# Solo lectura - GIT_USER_NAME y GIT_USER_EMAIL opcionales
+docker run --rm -it \
+    -v ~/.claude-code-container:/home/node \
+    -v ~/.ssh/id_rsa_github:/tmp/ssh_key/id_rsa:ro \
+    -v "$(pwd)/mi_proyecto_privado:/workspace" \
+    -e GIT_HOST_DOMAIN="github.com" \
+    -e GIT_REPO_URL="git@github.com:tu_usuario/tu_repo_privado.git" \
+    claude-code-container
+```
+
+**Para escritura (commit/push):**
+```bash
+# Escritura - GIT_USER_NAME y GIT_USER_EMAIL OBLIGATORIOS
 docker run --rm -it \
     -v ~/.claude-code-container:/home/node \
     -v ~/.ssh/id_rsa_github:/tmp/ssh_key/id_rsa:ro \
@@ -157,9 +185,13 @@ docker run --rm -it \
     -e GIT_REPO_URL="git@github.com:tu_usuario/tu_repo_privado.git" \
     claude-code-container
 ```
-**Notas sobre SSH:**
-- El `entrypoint.sh` copiará la clave montada a `~/.ssh/id_rsa` dentro del contenedor y establecerá los permisos correctos.
-- `GIT_HOST_DOMAIN` es crucial para añadir el host a `known_hosts`.
+
+**Notas sobre SSH y Git:**
+- **Claves SSH**: Proporcionan autenticación (permiso para acceder al repositorio)
+- **user.name/user.email**: Proporcionan identificación (quién hace los commits)
+- El `entrypoint.sh` copiará la clave montada a `~/.ssh/id_rsa` dentro del contenedor
+- `GIT_HOST_DOMAIN` es crucial para añadir el host a `known_hosts`
+- **Sin user.name/user.email**: Los commits fallarán con error de Git
 
 ### 7.4. Activar Modo YOLO
 
