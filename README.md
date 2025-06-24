@@ -42,10 +42,10 @@ Basado en análisis, Claude Code guarda su configuración en múltiples archivos
     ```
 
 2.  **Primera Ejecución (Configuración Inicial):**
-    Ejecuta el contenedor montando este directorio del host al directorio `/root` del contenedor.
+    Ejecuta el contenedor montando este directorio del host al directorio home del usuario no root (`/home/node`).
     ```bash
     docker run --rm -it \
-        -v ~/.claude-code-container:/root \
+        -v ~/.claude-code-container:/home/node \
         -v "/ruta/a/tu/proyecto:/workspace" \
         -e GIT_USER_NAME="Tu Nombre" \
         -e GIT_USER_EMAIL="tu@email.com" \
@@ -58,7 +58,7 @@ Basado en análisis, Claude Code guarda su configuración en múltiples archivos
     En todas las ejecuciones futuras, simplemente vuelve a montar el mismo directorio. Claude Code encontrará su configuración y no debería pedirla de nuevo.
     ```bash
     docker run --rm -it \
-        -v ~/.claude-code-container:/root \
+        -v ~/.claude-code-container:/home/node \
         -v "/ruta/a/tu/proyecto:/workspace" \
         -e GIT_USER_NAME="Tu Nombre" \
         -e GIT_USER_EMAIL="tu@email.com" \
@@ -66,7 +66,7 @@ Basado en análisis, Claude Code guarda su configuración en múltiples archivos
     ```
 
 **¡Importante sobre la Seguridad de la Configuración Persistente!**
-El directorio `~/.claude-code-containe` (o el que elijas) en tu host contendrá ahora información sensible como tus credenciales o API keys de Anthropic.
+El directorio `~/.claude-code-container` (o el que elijas) en tu host contendrá ahora información sensible como tus credenciales o API keys de Anthropic.
 - **Protege este directorio en tu sistema anfitrión adecuadamente.**
 - **No incluyas este directorio en repositorios Git** si contiene secretos. Añádelo a tu `.gitignore`.
 - La imagen Docker `claude-code-container` en sí misma no contendrá estos secretos, lo cual es una buena práctica de seguridad. Los secretos residen en tu sistema de archivos local, gestionados a través del volumen.
@@ -92,7 +92,7 @@ Claude Code se inicia y espera tus comandos directamente en la terminal.
 **Ejemplo (con configuración persistente):**
 ```bash
 docker run --rm -it \
-    -v ~/.claude-code-container:/root \
+    -v ~/.claude-code-container:/home/node \
     -v "$(pwd)/mi_proyecto_local:/workspace" \
     -e GIT_USER_NAME="Tu Nombre" \
     -e GIT_USER_EMAIL="tu@email.com" \
@@ -106,7 +106,7 @@ Pasas un prompt o comando directamente a Claude Code, y el contenedor se cerrar�
 **Ejemplo (con configuración persistente):**
 ```bash
 docker run --rm \
-    -v ~/.claude-code-container:/root \
+    -v ~/.claude-code-container:/home/node \
     -v "$(pwd)/mi_proyecto_local:/workspace" \
     -e GIT_USER_NAME="Tu Nombre" \
     -e GIT_USER_EMAIL="tu@email.com" \
@@ -115,13 +115,13 @@ docker run --rm \
 
 ## 7. Casos de Uso y Comandos `docker run` Detallados
 
-Asegúrate de incluir el montaje del volumen de configuración (`-v ~/.claude-code-container:/root`) en la mayoría de los comandos si deseas que la configuración se cargue.
+Asegúrate de incluir el montaje del volumen de configuración (`-v ~/.claude-code-container:/home/node`) en la mayoría de los comandos si deseas que la configuración se cargue.
 
 ### 7.1. Trabajar con un Workspace Local
 
 ```bash
 docker run --rm -it \
-    -v ~/.claude-code-container:/root \
+    -v ~/.claude-code-container:/home/node \
     -v "$(pwd)/mi_proyecto_local:/workspace" \
     -e GIT_USER_NAME="Mi Nombre" \
     -e GIT_USER_EMAIL="mi@email.com" \
@@ -133,7 +133,7 @@ docker run --rm -it \
 
 ```bash
 docker run --rm -it \
-    -v ~/.claude-code-container:/root \
+    -v ~/.claude-code-container:/home/node \
     -e GIT_REPO_URL="https://github.com/someuser/some-public-repo.git" \
     -e GIT_USER_NAME="Mi Nombre" \
     -e GIT_USER_EMAIL="mi@email.com" \
@@ -148,7 +148,7 @@ Monta tu clave SSH privada (solo lectura es una buena práctica) y especifica el
 # Asegúrate que tu clave SSH del host (ej: ~/.ssh/id_rsa_github) no tenga passphrase
 # o usa una clave dedicada para esto.
 docker run --rm -it \
-    -v ~/.claude-code-container:/root \
+    -v ~/.claude-code-container:/home/node \
     -v ~/.ssh/id_rsa_github:/tmp/ssh_key/id_rsa:ro \
     -v "$(pwd)/mi_proyecto_privado:/workspace" \
     -e GIT_HOST_DOMAIN="github.com" \
@@ -167,7 +167,7 @@ Establece `CLAUDE_YOLO_MODE="true"`.
 
 ```bash
 docker run --rm -it \
-    -v ~/.claude-code-container:/root \
+    -v ~/.claude-code-container:/home/node \
     -v "$(pwd)/mi_proyecto_local:/workspace" \
     -e GIT_USER_NAME="Mi Nombre" \
     -e GIT_USER_EMAIL="mi@email.com" \
@@ -178,7 +178,7 @@ docker run --rm -it \
 
 ## 8. Notas Importantes y Consideraciones Adicionales
 
-- **Permisos de Volumen:** La imagen utiliza el usuario `root` dentro del contenedor, lo que elimina la mayoría de problemas de permisos con volúmenes montados. Sin embargo, ten en cuenta las implicaciones de seguridad de ejecutar como root.
+- **Permisos de Volumen:** La imagen utiliza un usuario no root (`node`) con UID/GID 1000, compatible con Colima en macOS. Esto permite el uso del modo YOLO de Claude Code mientras mantiene acceso R/W a volúmenes montados.
 - **Seguridad de Claves SSH:**
   - Montar la clave SSH como un archivo de solo lectura (`:ro`) es más seguro.
   - Utiliza claves SSH dedicadas con los mínimos privilegios necesarios.
@@ -188,13 +188,16 @@ docker run --rm -it \
 
 ### Nota Importante para Usuarios de macOS con Colima y Permisos de Volumen
 
-Al usar la imagen actualizada que ejecuta como usuario `root`, los problemas de permisos con Colima en macOS se minimizan significativamente. El contenedor puede leer y escribir en los volúmenes montados sin configuraciones especiales de permisos.
+La imagen utiliza un usuario no root (`node`) con UID/GID 1000, que es compatible con la configuración por defecto de Colima en macOS. Esto resuelve tanto el problema de permisos de volumen como la restricción del modo YOLO de Claude Code.
 
-**Seguridad del Usuario Root:**
-Aunque ejecutar como `root` resuelve problemas de permisos, ten en cuenta las implicaciones de seguridad:
-- El contenedor tiene acceso completo a los archivos montados
-- Es especialmente importante ser cuidadoso en modo YOLO
-- Considera limitar el alcance de los directorios montados a solo lo necesario
+**Ventajas de Usuario No Root con UID 1000:**
+- ✅ Acceso completo R/W a volúmenes montados desde macOS vía Colima
+- ✅ Compatibilidad con modo YOLO de Claude Code (requiere usuario no root)
+- ✅ Mejor seguridad al no ejecutar como root
+- ✅ Configuración persistente en `/home/node` en lugar de `/root`
+
+**Configuración de Colima:**
+Por defecto, Colima monta directorios del host con permisos UID/GID 1000, coincidiendo perfectamente con nuestro usuario `node`. No se requiere configuración adicional.
 
 ---
 

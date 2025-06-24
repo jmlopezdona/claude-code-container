@@ -2,7 +2,7 @@
 set -e # Salir inmediatamente si un comando falla
 
 PROJECT_DIR="/workspace"
-USER_SSH_DIR="/root/.ssh"
+USER_SSH_DIR="$HOME/.ssh"
 # Ruta fija donde se espera que el usuario monte su clave SSH privada
 MOUNTED_SSH_KEY_FILE="/tmp/ssh_key/id_rsa" 
 FINAL_SSH_KEY_PATH="$USER_SSH_DIR/id_rsa"

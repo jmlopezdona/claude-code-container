@@ -25,12 +25,20 @@ RUN apt-get update && apt-get install -y \
 
 RUN npm install -g @anthropic-ai/claude-code
 
+# Usar el usuario 'node' existente (UID/GID 1000) compatible con Colima en macOS
+# Crear directorios necesarios con permisos correctos
 RUN mkdir -p /workspace \
-    && mkdir -p /root/.ssh \
-    && mkdir -p /tmp/ssh_key
+    && mkdir -p /home/node/.ssh \
+    && mkdir -p /tmp/ssh_key \
+    && chown -R node:node /workspace \
+    && chown -R node:node /home/node \
+    && chown -R node:node /tmp/ssh_key
 
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
+
+# Cambiar al usuario no root
+USER node
 
 WORKDIR /workspace
 
