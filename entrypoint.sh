@@ -1,134 +1,134 @@
 #!/bin/bash
-set -e # Salir inmediatamente si un comando falla
+set -e # Exit immediately if a command fails
 
 PROJECT_DIR="/workspace"
 USER_SSH_DIR="$HOME/.ssh"
-# Ruta fija donde se espera que el usuario monte su clave SSH privada
+# Fixed path where the user is expected to mount their private SSH key
 MOUNTED_SSH_KEY_FILE="/tmp/ssh_key/id_rsa" 
 FINAL_SSH_KEY_PATH="$USER_SSH_DIR/id_rsa"
 
-echo "--- Iniciando Entrypoint para Claude Code ---"
+echo "--- Starting Entrypoint for Claude Code ---"
 
-# --- 0. Configuración SSH ---
+# --- 0. SSH Configuration ---
 mkdir -p "$USER_SSH_DIR"
 chmod 700 "$USER_SSH_DIR"
 
 CONFIGURED_SSH=false
 SSH_METHOD=""
 
-# Prioridad 1: Clave montada en la ruta fija
+# Priority 1: Key mounted at fixed path
 if [ -f "$MOUNTED_SSH_KEY_FILE" ]; then
-    echo "Detectada clave SSH montada en: $MOUNTED_SSH_KEY_FILE"
-    if [ -s "$MOUNTED_SSH_KEY_FILE" ]; then # Verificar si el archivo tiene contenido
+    echo "SSH key detected mounted at: $MOUNTED_SSH_KEY_FILE"
+    if [ -s "$MOUNTED_SSH_KEY_FILE" ]; then # Check if file has content
         cp "$MOUNTED_SSH_KEY_FILE" "$FINAL_SSH_KEY_PATH"
         chmod 600 "$FINAL_SSH_KEY_PATH"
         CONFIGURED_SSH=true
-        SSH_METHOD="montada"
+        SSH_METHOD="mounted"
     else
-        echo "Advertencia: El archivo $MOUNTED_SSH_KEY_FILE está vacío. No se configurará SSH desde este archivo."
+        echo "Warning: File $MOUNTED_SSH_KEY_FILE is empty. SSH will not be configured from this file."
     fi
 else
-    echo "Información: No se proporcionó clave SSH montada en $MOUNTED_SSH_KEY_FILE."
-    echo "Las operaciones Git que requieran autenticación SSH podrían fallar."
+    echo "Info: No SSH key provided mounted at $MOUNTED_SSH_KEY_FILE."
+    echo "Git operations requiring SSH authentication may fail."
 fi
 
 if [ "$CONFIGURED_SSH" = true ]; then
     if [ -z "$GIT_HOST_DOMAIN" ]; then
-        echo "Error: Se ha configurado una clave SSH (método: $SSH_METHOD), pero la variable GIT_HOST_DOMAIN está vacía."
-        echo "GIT_HOST_DOMAIN es obligatoria para configurar known_hosts y evitar prompts manuales."
+        echo "Error: SSH key configured (method: $SSH_METHOD), but GIT_HOST_DOMAIN variable is empty."
+        echo "GIT_HOST_DOMAIN is required to configure known_hosts and avoid manual prompts."
         exit 1
     fi
-    echo "Añadiendo $GIT_HOST_DOMAIN a known_hosts..."
-    # Limpiar known_hosts para evitar duplicados o conflictos si se relanza
+    echo "Adding $GIT_HOST_DOMAIN to known_hosts..."
+    # Clean known_hosts to avoid duplicates or conflicts on restart
     touch "$USER_SSH_DIR/known_hosts"
     ssh-keyscan -t rsa "$GIT_HOST_DOMAIN" > "$USER_SSH_DIR/known_hosts"
     chmod 644 "$USER_SSH_DIR/known_hosts"
-    echo "Configuración SSH completada para $GIT_HOST_DOMAIN."
+    echo "SSH configuration completed for $GIT_HOST_DOMAIN."
 fi
 
-# --- 1. Configurar Git Global ---
+# --- 1. Configure Git Global ---
 cd "$PROJECT_DIR"
 
-# Verificar si ya existe configuración Git
+# Check if Git configuration already exists
 EXISTING_GIT_NAME=$(git config --global user.name 2>/dev/null || echo "")
 EXISTING_GIT_EMAIL=$(git config --global user.email 2>/dev/null || echo "")
 
-# Configurar Git solo si se especifican variables o no existe configuración previa
+# Configure Git only if variables are specified or no previous configuration exists
 if [ -n "$GIT_USER_NAME" ] && [ "$GIT_USER_NAME" != "Claude Docker User" ]; then
-    echo "Configurando git user.name a: $GIT_USER_NAME"
+    echo "Setting git user.name to: $GIT_USER_NAME"
     git config --global user.name "$GIT_USER_NAME"
 elif [ -z "$EXISTING_GIT_NAME" ] && [ -n "$GIT_USER_NAME" ]; then
-    echo "Usando git user.name por defecto: $GIT_USER_NAME"
-    echo "⚠️  ADVERTENCIA: Usando configuración genérica. Para commits reales, especifica GIT_USER_NAME."
+    echo "Using default git user.name: $GIT_USER_NAME"
+    echo "⚠️  WARNING: Using generic configuration. For real commits, specify GIT_USER_NAME."
     git config --global user.name "$GIT_USER_NAME"
 elif [ -n "$EXISTING_GIT_NAME" ]; then
-    echo "Usando configuración Git existente - user.name: $EXISTING_GIT_NAME"
+    echo "Using existing Git configuration - user.name: $EXISTING_GIT_NAME"
 fi
 
 if [ -n "$GIT_USER_EMAIL" ] && [ "$GIT_USER_EMAIL" != "claude-docker@example.com" ]; then
-    echo "Configurando git user.email a: $GIT_USER_EMAIL"
+    echo "Setting git user.email to: $GIT_USER_EMAIL"
     git config --global user.email "$GIT_USER_EMAIL"
 elif [ -z "$EXISTING_GIT_EMAIL" ] && [ -n "$GIT_USER_EMAIL" ]; then
-    echo "Usando git user.email por defecto: $GIT_USER_EMAIL"
-    echo "⚠️  ADVERTENCIA: Usando configuración genérica. Para commits reales, especifica GIT_USER_EMAIL."
+    echo "Using default git user.email: $GIT_USER_EMAIL"
+    echo "⚠️  WARNING: Using generic configuration. For real commits, specify GIT_USER_EMAIL."
     git config --global user.email "$GIT_USER_EMAIL"
 elif [ -n "$EXISTING_GIT_EMAIL" ]; then
-    echo "Usando configuración Git existente - user.email: $EXISTING_GIT_EMAIL"
+    echo "Using existing Git configuration - user.email: $EXISTING_GIT_EMAIL"
 fi
 
-# Configurar directorio de trabajo como seguro para Git
-# Esto previene el error "dubious ownership" en volúmenes montados
-echo "Configurando directorio de trabajo como seguro para Git..."
+# Configure working directory as safe for Git
+# This prevents "dubious ownership" error in mounted volumes
+echo "Configuring working directory as safe for Git..."
 git config --global --add safe.directory /workspace
 git config --global --add safe.directory '*'
 
-# Configurar rama por defecto como 'main' en lugar de 'master'
+# Configure default branch as 'main' instead of 'master'
 git config --global init.defaultBranch main
 
-# Advertencia final si no hay configuración Git válida
+# Final warning if there's no valid Git configuration
 FINAL_GIT_NAME=$(git config --global user.name 2>/dev/null || echo "")
 FINAL_GIT_EMAIL=$(git config --global user.email 2>/dev/null || echo "")
 if [ -z "$FINAL_GIT_NAME" ] || [ -z "$FINAL_GIT_EMAIL" ]; then
-    echo "⚠️  ADVERTENCIA: Configuración Git incompleta. Los commits fallarán sin user.name y user.email."
-    echo "   Especifica GIT_USER_NAME y GIT_USER_EMAIL para operaciones de escritura."
+    echo "⚠️  WARNING: Incomplete Git configuration. Commits will fail without user.name and user.email."
+    echo "   Specify GIT_USER_NAME and GIT_USER_EMAIL for write operations."
 fi
 
-# --- 2. Preparar Workspace ---
+# --- 2. Prepare Workspace ---
 if [ -n "$GIT_REPO_URL" ]; then
-    echo "GIT_REPO_URL especificado: $GIT_REPO_URL"
-    if [ "$(ls -A .)" ]; then # Verifica si el directorio actual (PROJECT_DIR) tiene contenido
-        echo "Advertencia: El directorio de trabajo $PROJECT_DIR no está vacío. No se clonará el repositorio."
+    echo "GIT_REPO_URL specified: $GIT_REPO_URL"
+    if [ "$(ls -A .)" ]; then # Check if current directory (PROJECT_DIR) has content
+        echo "Warning: Working directory $PROJECT_DIR is not empty. Repository will not be cloned."
     else
-        echo "Directorio de trabajo $PROJECT_DIR está vacío. Clonando repositorio..."
-        git clone --depth 1 "$GIT_REPO_URL" . # Clonar en el directorio actual (PROJECT_DIR)
-        echo "Repositorio clonado."
+        echo "Working directory $PROJECT_DIR is empty. Cloning repository..."
+        git clone --depth 1 "$GIT_REPO_URL" . # Clone into current directory (PROJECT_DIR)
+        echo "Repository cloned."
     fi
 else
-    echo "No se especificó GIT_REPO_URL."
+    echo "No GIT_REPO_URL specified."
     if [ "$(ls -A .)" ]; then
-        echo "El workspace ($PROJECT_DIR) contiene archivos - usando directorio montado/existente."
+        echo "Workspace ($PROJECT_DIR) contains files - using mounted/existing directory."
     else
-        echo "El workspace ($PROJECT_DIR) está vacío - se usará como directorio de trabajo vacío."
+        echo "Workspace ($PROJECT_DIR) is empty - will be used as empty working directory."
     fi
 fi
 
-# --- 3. Determinar argumentos para Claude Code (Modo YOLO) ---
+# --- 3. Determine arguments for Claude Code (YOLO Mode) ---
 CLAUDE_COMMAND_ARGS=()
 if [ "$CLAUDE_YOLO_MODE" = "true" ] || [ "$CLAUDE_YOLO_MODE" = "TRUE" ]; then
-    echo "Modo YOLO está ACTIVADO."
-    CLAUDE_COMMAND_ARGS+=("--dangerously-skip-permissions") # Ajustar si el flag real es diferente
+    echo "YOLO Mode is ENABLED."
+    CLAUDE_COMMAND_ARGS+=("--dangerously-skip-permissions") # Adjust if the actual flag is different
 else
-    echo "Modo YOLO está DESACTIVADO."
+    echo "YOLO Mode is DISABLED."
 fi
 
-# --- 4. Ejecutar Claude Code ---
+# --- 4. Execute Claude Code ---
 TARGET_COMMAND_ARGS=("${CLAUDE_COMMAND_ARGS[@]}")
-# Si se pasan argumentos al 'docker run ... mi-imagen [argumentos_claude]', se añaden aquí
+# If arguments are passed to 'docker run ... my-image [claude_arguments]', they are added here
 if [ "$#" -gt 0 ]; then
     TARGET_COMMAND_ARGS+=("$@")
 fi
 
-echo "Ejecutando comando: claude ${TARGET_COMMAND_ARGS[*]}"
+echo "Executing command: claude ${TARGET_COMMAND_ARGS[*]}"
 echo "----------------------------------------------"
-# Usar 'exec' para que el proceso de claude reemplace al script bash.
+# Use 'exec' so that the claude process replaces the bash script.
 exec claude "${TARGET_COMMAND_ARGS[@]}"

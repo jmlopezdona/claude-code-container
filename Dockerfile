@@ -1,17 +1,17 @@
-# Dockerfile Base para Claude Code
+# Base Dockerfile for Claude Code
 
 FROM node:18-slim
 
 ARG GIT_USER_NAME_ARG="Claude Docker User"
 ARG GIT_USER_EMAIL_ARG="claude-docker@example.com"
 
-# Variables de entorno que usarán los scripts
-# Nota: Estos son valores genéricos. Para commits reales, especifica tus propios valores
+# Environment variables that will be used by scripts
+# Note: These are generic values. For real commits, specify your own values
 ENV GIT_USER_NAME=${GIT_USER_NAME_ARG}
 ENV GIT_USER_EMAIL=${GIT_USER_EMAIL_ARG}
 ENV CLAUDE_YOLO_MODE="false"
 ENV GIT_REPO_URL=""
-# Dominio del host git (ej: github.com) - Obligatorio si se usa SSH
+# Git host domain (e.g: github.com) - Required if using SSH
 ENV GIT_HOST_DOMAIN=""
 
 RUN apt-get update && apt-get install -y \
@@ -26,8 +26,8 @@ RUN apt-get update && apt-get install -y \
 
 RUN npm install -g @anthropic-ai/claude-code
 
-# Usar el usuario 'node' existente (UID/GID 1000) compatible con Colima en macOS
-# Crear directorios necesarios con permisos correctos
+# Use existing 'node' user (UID/GID 1000) compatible with Colima on macOS
+# Create necessary directories with correct permissions
 RUN mkdir -p /workspace \
     && mkdir -p /home/node/.ssh \
     && mkdir -p /tmp/ssh_key \
@@ -38,11 +38,11 @@ RUN mkdir -p /workspace \
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
-# Cambiar al usuario no root
+# Switch to non-root user
 USER node
 
 WORKDIR /workspace
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
-# CMD vacío para que por defecto se ejecute 'claude' interactivamente si no se pasan args
+# Empty CMD so that by default 'claude' runs interactively if no args are passed
 CMD []

@@ -1,237 +1,235 @@
-```markdown
-# Ejecución Segura y Configurable de Claude Code con Docker
+# Secure and Configurable Claude Code Execution with Docker
 
-Este documento describe cómo construir y utilizar una imagen Docker para ejecutar Claude Code de forma segura y configurable. La solución permite trabajar con repositorios Git (públicos y privados mediante SSH), montar workspaces locales, activar el modo YOLO de Claude Code y persistir la configuración inicial de Claude Code para evitar repetirla.
+This document describes how to build and use a Docker image to run Claude Code securely and configurably. The solution allows working with Git repositories (public and private via SSH), mounting local workspaces, activating Claude Code's YOLO mode, and persisting Claude Code's initial configuration to avoid repeating it.
 
-## 1. Propósito
+## 1. Purpose
 
-El objetivo es proporcionar un entorno aislado y reproducible para Claude Code que:
-- Proteja el sistema anfitrión de operaciones potencialmente peligrosas (especialmente en modo YOLO).
-- Simplifique la gestión de dependencias (Node.js, Claude Code CLI, Git, etc.).
-- Facilite la configuración para interactuar con repositorios Git.
-- Permita la elección entre un workspace local montado o la clonación de un repositorio Git.
-- **Persista la configuración inicial de Claude Code (login, API keys, preferencias del editor) entre sesiones.**
+The goal is to provide an isolated and reproducible environment for Claude Code that:
+- Protects the host system from potentially dangerous operations (especially in YOLO mode).
+- Simplifies dependency management (Node.js, Claude Code CLI, Git, etc.).
+- Facilitates configuration for interacting with Git repositories.
+- Allows choosing between a mounted local workspace or cloning a Git repository.
+- **Persists Claude Code's initial configuration (login, API keys, editor preferences) between sessions.**
 
-## 2. Requisitos Previos
+## 2. Prerequisites
 
-- **Docker:** Debes tener Docker instalado y funcionando en tu sistema.
-- **Clave SSH:** Para interactuar con repositorios Git privados usando SSH es necesaria una clave SSH privada.
-- **Suscricion a Claude Code o API KEY de Anthropic** Necesaria en la configuracion inicial de Claude Code
-- **Directorio de Configuración en el Host:** Un directorio vacío en tu sistema anfitrión donde se guardará la configuración persistente de Claude Code. Ejemplo: `~/.claude-code-container`.
+- **Docker:** You must have Docker installed and running on your system.
+- **SSH Key:** To interact with private Git repositories using SSH, an SSH private key is required.
+- **Claude Code Subscription or Anthropic API KEY** Required for Claude Code initial configuration
+- **Configuration Directory on Host:** An empty directory on your host system where Claude Code's persistent configuration will be saved. Example: `~/.claude-code-container`.
 
-## 3. Construcción de la Imagen Docker
+## 3. Building the Docker Image
 
-1. Guarda los archivos `Dockerfile` y `entrypoint.sh` (proporcionados anteriormente) en un directorio vacío.
-2. Abre una terminal en ese directorio.
-3. Ejecuta el siguiente comando para construir la imagen. Puedes cambiar `claude-code-container` por el nombre y etiqueta que prefieras:
+1. Save the `Dockerfile` and `entrypoint.sh` files (provided earlier) in an empty directory.
+2. Open a terminal in that directory.
+3. Run the following command to build the image. You can change `claude-code-container` to your preferred name and tag:
    ```bash
    docker build -t claude-code-container .
    ```
 
-## 4. Persistencia de la Configuración de Claude Code
+## 4. Claude Code Configuration Persistence
 
-Claude Code puede requerir una configuración inicial interactiva (login, API key, preferencias). Para evitar repetir este proceso en cada ejecución del contenedor, se recomienda persistir el directorio de configuración de Claude Code usando un volumen Docker.
+Claude Code may require initial interactive configuration (login, API key, preferences). To avoid repeating this process with each container run, it's recommended to persist Claude Code's configuration directory using a Docker volume.
 
-Basado en análisis, Claude Code guarda su configuración en múltiples archivos dentro del directorio `/root` del contenedor, incluyendo `/root/.claude/` y `/root/.claude.json`.
+Based on analysis, Claude Code saves its configuration in multiple files within the `/home/node` directory in the container, including `/home/node/.claude/` and `/home/node/.claude.json`.
 
-**Procedimiento:**
+**Procedure:**
 
-1.  **Crea un directorio en tu sistema anfitrión** para almacenar esta configuración (si aún no lo has hecho). Este directorio debe estar vacío la primera vez o contener una configuración previa.
+1.  **Create a directory on your host system** to store this configuration (if you haven't already). This directory should be empty the first time or contain previous configuration.
     ```bash
     mkdir -p ~/.claude-code-container
     ```
 
-2.  **Primera Ejecución (Configuración Inicial):**
-    Ejecuta el contenedor montando este directorio del host al directorio home del usuario no root (`/home/node`).
+2.  **First Run (Initial Configuration):**
+    Run the container mounting this directory from the host to the non-root user's home directory (`/home/node`).
     ```bash
     docker run --rm -it \
         -v ~/.claude-code-container:/home/node \
-        -v "/ruta/a/tu/proyecto:/workspace" \
-        -e GIT_USER_NAME="Tu Nombre" \
-        -e GIT_USER_EMAIL="tu@email.com" \
+        -v "/path/to/your/project:/workspace" \
+        -e GIT_USER_NAME="Your Name" \
+        -e GIT_USER_EMAIL="your@email.com" \
         claude-code-container
     ```
-    - Durante esta sesión, realiza la configuración interactiva que te pida Claude Code (login, API key, etc.).
-    - Los archivos de configuración resultantes (`.claude.json`, `.claude/`, `.gitconfig`, etc.) se guardarán en `~/.claude-code-container` en tu máquina host.
+    - During this session, perform the interactive configuration that Claude Code requests (login, API key, etc.).
+    - The resulting configuration files (`.claude.json`, `.claude/`, `.gitconfig`, etc.) will be saved in `~/.claude-code-container` on your host machine.
 
-3.  **Ejecuciones Posteriores:**
-    En todas las ejecuciones futuras, simplemente vuelve a montar el mismo directorio. Claude Code encontrará su configuración y no debería pedirla de nuevo.
+3.  **Subsequent Runs:**
+    In all future runs, simply mount the same directory again. Claude Code will find its configuration and shouldn't ask for it again.
     ```bash
     docker run --rm -it \
         -v ~/.claude-code-container:/home/node \
-        -v "/ruta/a/tu/proyecto:/workspace" \
-        -e GIT_USER_NAME="Tu Nombre" \
-        -e GIT_USER_EMAIL="tu@email.com" \
-        claude-code-container "Mi prompt para Claude"
+        -v "/path/to/your/project:/workspace" \
+        -e GIT_USER_NAME="Your Name" \
+        -e GIT_USER_EMAIL="your@email.com" \
+        claude-code-container "My prompt for Claude"
     ```
 
-**¡Importante sobre la Seguridad de la Configuración Persistente!**
-El directorio `~/.claude-code-container` (o el que elijas) en tu host contendrá ahora información sensible como tus credenciales o API keys de Anthropic.
-- **Protege este directorio en tu sistema anfitrión adecuadamente.**
-- **No incluyas este directorio en repositorios Git** si contiene secretos. Añádelo a tu `.gitignore`.
-- La imagen Docker `claude-code-container` en sí misma no contendrá estos secretos, lo cual es una buena práctica de seguridad. Los secretos residen en tu sistema de archivos local, gestionados a través del volumen.
+**Important about Persistent Configuration Security!**
+The `~/.claude-code-container` directory (or whichever you choose) on your host will now contain sensitive information like your Anthropic credentials or API keys.
+- **Protect this directory on your host system appropriately.**
+- **Don't include this directory in Git repositories** if it contains secrets. Add it to your `.gitignore`.
+- The `claude-code-container` Docker image itself will not contain these secrets, which is a good security practice. The secrets reside on your local filesystem, managed through the volume.
 
-## 5. Variables de Entorno Configurables
+## 5. Configurable Environment Variables
 
-Puedes configurar el comportamiento del contenedor usando las siguientes variables de entorno al ejecutar `docker run -e VARIABLE=valor ...`:
+You can configure the container's behavior using the following environment variables when running `docker run -e VARIABLE=value ...`:
 
-### Variables Git (Importantes para Commits)
-- **`GIT_USER_NAME`**: Nombre de usuario para las confirmaciones de Git. Ejemplo: `"Tu Nombre"`.
-  - **Obligatorio para commits**: Sin esta variable, Git no puede crear commits
-  - **Autenticación SSH**: Las claves SSH permiten acceso, pero Git aún necesita saber quién eres
-  - Si no se especifica, se usa valor genérico (no recomendado para commits reales)
-- **`GIT_USER_EMAIL`**: Correo electrónico para las confirmaciones de Git. Ejemplo: `"tu@email.com"`.
-  - **Obligatorio para commits**: Git requiere email para identificar el autor
-  - **Recomendación**: Usa el mismo email asociado a tu cuenta de GitHub/GitLab
+### Git Variables (Important for Commits)
+- **`GIT_USER_NAME`**: Username for Git commits. Example: `"Your Name"`.
+  - **Required for commits**: Without this variable, Git cannot create commits
+  - **SSH Authentication**: SSH keys allow access, but Git still needs to know who you are
+  - If not specified, a generic value is used (not recommended for real commits)
+- **`GIT_USER_EMAIL`**: Email for Git commits. Example: `"your@email.com"`.
+  - **Required for commits**: Git requires email to identify the author
+  - **Recommendation**: Use the same email associated with your GitHub/GitLab account
 
-### Variables de Comportamiento
-- **`CLAUDE_YOLO_MODE`**: (Opcional) Establécelo en `"true"` para activar el modo YOLO de Claude Code (`--dangerously-skip-permissions`). Por defecto es `"false"` (modo seguro).
-- **`GIT_REPO_URL`**: (Opcional) URL del repositorio Git a clonar si el workspace (`/workspace`) está vacío. Ejemplo: `"https://github.com/usuario/repo.git"` o `"git@github.com:usuario/repo.git"`.
-- **`GIT_HOST_DOMAIN`**: (Obligatorio si se usa SSH) El dominio del servidor Git para `ssh-keyscan`. Ejemplo: `"github.com"`, `"gitlab.com"`.
+### Behavior Variables
+- **`CLAUDE_YOLO_MODE`**: (Optional) Set to `"true"` to activate Claude Code's YOLO mode (`--dangerously-skip-permissions`). Default is `"false"` (safe mode).
+- **`GIT_REPO_URL`**: (Optional) URL of the Git repository to clone if the workspace (`/workspace`) is empty. Example: `"https://github.com/user/repo.git"` or `"git@github.com:user/repo.git"`.
+- **`GIT_HOST_DOMAIN`**: (Required if using SSH) The Git server domain for `ssh-keyscan`. Example: `"github.com"`, `"gitlab.com"`.
 
-### Cuándo Usar Cada Variable
+### When to Use Each Variable
 
-| Caso de Uso | GIT_USER_NAME | GIT_USER_EMAIL | GIT_HOST_DOMAIN | Claves SSH |
-|-------------|---------------|----------------|-----------------|------------|
-| Solo lectura (clone/pull) | Opcional | Opcional | Sí (si SSH) | Sí (si repo privado) |
-| Escritura (commit/push) | **Obligatorio** | **Obligatorio** | Sí (si SSH) | Sí |
-| Trabajo local sin Git | No necesario | No necesario | No necesario | No necesario |
+| Use Case | GIT_USER_NAME | GIT_USER_EMAIL | GIT_HOST_DOMAIN | SSH Keys |
+|----------|---------------|----------------|-----------------|----------|
+| Read-only (clone/pull) | Optional | Optional | Yes (if SSH) | Yes (if private repo) |
+| Write (commit/push) | **Required** | **Required** | Yes (if SSH) | Yes |
+| Local work without Git | Not needed | Not needed | Not needed | Not needed |
 
-## 6. Modos de Ejecución
+## 6. Execution Modes
 
-El contenedor de Claude Code puede ejecutarse de dos maneras principales:
+The Claude Code container can be run in two main ways:
 
-### 6.1. Modo Interactivo
+### 6.1. Interactive Mode
 
-Claude Code se inicia y espera tus comandos directamente en la terminal.
+Claude Code starts and waits for your commands directly in the terminal.
 
-**Ejemplo (con configuración persistente):**
+**Example (with persistent configuration):**
 ```bash
 docker run --rm -it \
     -v ~/.claude-code-container:/home/node \
-    -v "$(pwd)/mi_proyecto_local:/workspace" \
-    -e GIT_USER_NAME="Tu Nombre" \
-    -e GIT_USER_EMAIL="tu@email.com" \
+    -v "$(pwd)/my_local_project:/workspace" \
+    -e GIT_USER_NAME="Your Name" \
+    -e GIT_USER_EMAIL="your@email.com" \
     claude-code-container
 ```
 
-### 6.2. Modo Autónomo (No Interactivo)
+### 6.2. Autonomous Mode (Non-Interactive)
 
-Pasas un prompt o comando directamente a Claude Code, y el contenedor se cerrará una vez que la tarea se complete.
+You pass a prompt or command directly to Claude Code, and the container will close once the task is complete.
 
-**Ejemplo (con configuración persistente):**
+**Example (with persistent configuration):**
 ```bash
 docker run --rm \
     -v ~/.claude-code-container:/home/node \
-    -v "$(pwd)/mi_proyecto_local:/workspace" \
-    -e GIT_USER_NAME="Tu Nombre" \
-    -e GIT_USER_EMAIL="tu@email.com" \
-    claude-code-container "Resume el archivo README.md"
+    -v "$(pwd)/my_local_project:/workspace" \
+    -e GIT_USER_NAME="Your Name" \
+    -e GIT_USER_EMAIL="your@email.com" \
+    claude-code-container "Summarize the README.md file"
 ```
 
-## 7. Casos de Uso y Comandos `docker run` Detallados
+## 7. Use Cases and Detailed `docker run` Commands
 
-Asegúrate de incluir el montaje del volumen de configuración (`-v ~/.claude-code-container:/home/node`) en la mayoría de los comandos si deseas que la configuración se cargue.
+Make sure to include the configuration volume mount (`-v ~/.claude-code-container:/home/node`) in most commands if you want the configuration to load.
 
-### 7.1. Trabajar con un Workspace Local
+### 7.1. Working with a Local Workspace
 
 ```bash
 docker run --rm -it \
     -v ~/.claude-code-container:/home/node \
-    -v "$(pwd)/mi_proyecto_local:/workspace" \
-    -e GIT_USER_NAME="Mi Nombre" \
-    -e GIT_USER_EMAIL="mi@email.com" \
+    -v "$(pwd)/my_local_project:/workspace" \
+    -e GIT_USER_NAME="My Name" \
+    -e GIT_USER_EMAIL="my@email.com" \
     claude-code-container
 ```
-(Reemplaza `$(pwd)/mi_proyecto_local` con la ruta a tu proyecto).
+(Replace `$(pwd)/my_local_project` with the path to your project).
 
-### 7.2. Clonar un Repositorio Git Público
+### 7.2. Clone a Public Git Repository
 
 ```bash
 docker run --rm -it \
     -v ~/.claude-code-container:/home/node \
     -e GIT_REPO_URL="https://github.com/someuser/some-public-repo.git" \
-    -e GIT_USER_NAME="Mi Nombre" \
-    -e GIT_USER_EMAIL="mi@email.com" \
-    claude-code-container "analiza la estructura del proyecto"
+    -e GIT_USER_NAME="My Name" \
+    -e GIT_USER_EMAIL="my@email.com" \
+    claude-code-container "analyze the project structure"
 ```
 
-### 7.3. Clonar/Trabajar con un Repositorio Privado usando SSH
+### 7.3. Clone/Work with a Private Repository using SSH
 
-Monta tu clave SSH privada (solo lectura es una buena práctica) y especifica el `GIT_HOST_DOMAIN`.
+Mount your SSH private key (read-only is good practice) and specify the `GIT_HOST_DOMAIN`.
 
-**Solo para lectura (clone/pull):**
+**For read-only (clone/pull):**
 ```bash
-# Solo lectura - GIT_USER_NAME y GIT_USER_EMAIL opcionales
+# Read-only - GIT_USER_NAME and GIT_USER_EMAIL optional
 docker run --rm -it \
     -v ~/.claude-code-container:/home/node \
     -v ~/.ssh/id_rsa_github:/tmp/ssh_key/id_rsa:ro \
-    -v "$(pwd)/mi_proyecto_privado:/workspace" \
+    -v "$(pwd)/my_private_project:/workspace" \
     -e GIT_HOST_DOMAIN="github.com" \
-    -e GIT_REPO_URL="git@github.com:tu_usuario/tu_repo_privado.git" \
+    -e GIT_REPO_URL="git@github.com:your_user/your_private_repo.git" \
     claude-code-container
 ```
 
-**Para escritura (commit/push):**
+**For write operations (commit/push):**
 ```bash
-# Escritura - GIT_USER_NAME y GIT_USER_EMAIL OBLIGATORIOS
+# Write operations - GIT_USER_NAME and GIT_USER_EMAIL REQUIRED
 docker run --rm -it \
     -v ~/.claude-code-container:/home/node \
     -v ~/.ssh/id_rsa_github:/tmp/ssh_key/id_rsa:ro \
-    -v "$(pwd)/mi_proyecto_privado:/workspace" \
+    -v "$(pwd)/my_private_project:/workspace" \
     -e GIT_HOST_DOMAIN="github.com" \
-    -e GIT_USER_NAME="Mi Nombre" \
-    -e GIT_USER_EMAIL="mi@email.com" \
-    -e GIT_REPO_URL="git@github.com:tu_usuario/tu_repo_privado.git" \
+    -e GIT_USER_NAME="My Name" \
+    -e GIT_USER_EMAIL="my@email.com" \
+    -e GIT_REPO_URL="git@github.com:your_user/your_private_repo.git" \
     claude-code-container
 ```
 
-**Notas sobre SSH y Git:**
-- **Claves SSH**: Proporcionan autenticación (permiso para acceder al repositorio)
-- **user.name/user.email**: Proporcionan identificación (quién hace los commits)
-- El `entrypoint.sh` copiará la clave montada a `~/.ssh/id_rsa` dentro del contenedor
-- `GIT_HOST_DOMAIN` es crucial para añadir el host a `known_hosts`
-- **Sin user.name/user.email**: Los commits fallarán con error de Git
+**Notes about SSH and Git:**
+- **SSH Keys**: Provide authentication (permission to access the repository)
+- **user.name/user.email**: Provide identification (who makes the commits)
+- The `entrypoint.sh` will copy the mounted key to `~/.ssh/id_rsa` inside the container
+- `GIT_HOST_DOMAIN` is crucial for adding the host to `known_hosts`
+- **Without user.name/user.email**: Commits will fail with Git error
 
-### 7.4. Activar Modo YOLO
+### 7.4. Activate YOLO Mode
 
-Establece `CLAUDE_YOLO_MODE="true"`.
+Set `CLAUDE_YOLO_MODE="true"`.
 
 ```bash
 docker run --rm -it \
     -v ~/.claude-code-container:/home/node \
-    -v "$(pwd)/mi_proyecto_local:/workspace" \
-    -e GIT_USER_NAME="Mi Nombre" \
-    -e GIT_USER_EMAIL="mi@email.com" \
+    -v "$(pwd)/my_local_project:/workspace" \
+    -e GIT_USER_NAME="My Name" \
+    -e GIT_USER_EMAIL="my@email.com" \
     -e CLAUDE_YOLO_MODE="true" \
-    claude-code-container "borra todos los archivos .log"
+    claude-code-container "delete all .log files"
 ```
-**¡Usa el modo YOLO con extrema precaución, especialmente con acceso de escritura a tus archivos!**
+**Use YOLO mode with extreme caution, especially with write access to your files!**
 
-## 8. Notas Importantes y Consideraciones Adicionales
+## 8. Important Notes and Additional Considerations
 
-- **Permisos de Volumen:** La imagen utiliza un usuario no root (`node`) con UID/GID 1000, compatible con Colima en macOS. Esto permite el uso del modo YOLO de Claude Code mientras mantiene acceso R/W a volúmenes montados.
-- **Seguridad de Claves SSH:**
-  - Montar la clave SSH como un archivo de solo lectura (`:ro`) es más seguro.
-  - Utiliza claves SSH dedicadas con los mínimos privilegios necesarios.
-  - Nunca incluyas claves SSH directamente en tu `Dockerfile`.
-- **Modificación del `entrypoint.sh`:** Si necesitas lógica más compleja, puedes extender el `entrypoint.sh`.
-- **Stack Tecnológico:** Este Dockerfile base está pensado para tareas de documentación o proyectos que no requieren herramientas de build específicas. Para proyectos con necesidades (Python, Java, Node.js con dependencias de proyecto, etc.), deberás crear Dockerfiles especializados que partan de esta base (`FROM claude-code-container`) e instalen las herramientas y dependencias adicionales.
+- **Volume Permissions:** The image uses a non-root user (`node`) with UID/GID 1000, compatible with Colima on macOS. This enables the use of Claude Code's YOLO mode while maintaining R/W access to mounted volumes.
+- **SSH Key Security:**
+  - Mount the SSH key as a read-only file (`:ro`) for better security.
+  - Use dedicated SSH keys with minimal necessary privileges.
+  - Never include SSH keys directly in your `Dockerfile`.
+- **Modifying `entrypoint.sh`:** If you need more complex logic, you can extend the `entrypoint.sh`.
+- **Technology Stack:** This base Dockerfile is designed for documentation tasks or projects that don't require specific build tools. For projects with specific needs (Python, Java, Node.js with project dependencies, etc.), you'll need to create specialized Dockerfiles that build from this base (`FROM claude-code-container`) and install additional tools and dependencies.
 
-### Nota Importante para Usuarios de macOS con Colima y Permisos de Volumen
+### Important Note for macOS Users with Colima and Volume Permissions
 
-La imagen utiliza un usuario no root (`node`) con UID/GID 1000, que es compatible con la configuración por defecto de Colima en macOS. Esto resuelve tanto el problema de permisos de volumen como la restricción del modo YOLO de Claude Code.
+The image uses a non-root user (`node`) with UID/GID 1000, which is compatible with Colima's default configuration on macOS. This solves both the volume permissions problem and Claude Code's YOLO mode restriction.
 
-**Ventajas de Usuario No Root con UID 1000:**
-- ✅ Acceso completo R/W a volúmenes montados desde macOS vía Colima
-- ✅ Compatibilidad con modo YOLO de Claude Code (requiere usuario no root)
-- ✅ Mejor seguridad al no ejecutar como root
-- ✅ Configuración persistente en `/home/node` en lugar de `/root`
+**Advantages of Non-Root User with UID 1000:**
+- ✅ Full R/W access to volumes mounted from macOS via Colima
+- ✅ Compatibility with Claude Code's YOLO mode (requires non-root user)
+- ✅ Better security by not running as root
+- ✅ Persistent configuration in `/home/node` instead of `/root`
 
-**Configuración de Colima:**
-Por defecto, Colima monta directorios del host con permisos UID/GID 1000, coincidiendo perfectamente con nuestro usuario `node`. No se requiere configuración adicional.
+**Colima Configuration:**
+By default, Colima mounts host directories with UID/GID 1000 permissions, perfectly matching our `node` user. No additional configuration required.
 
 ---
 
-Este documento debería servir como una buena guía para empezar. ¡No dudes en adaptarlo y expandirlo según tus necesidades!
-```
+This document should serve as a good guide to get started. Feel free to adapt and expand it according to your needs!
