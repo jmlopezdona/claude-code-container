@@ -229,7 +229,3 @@ The image uses a non-root user (`node`) with UID/GID 1000, which is compatible w
 
 **Colima Configuration:**
 By default, Colima mounts host directories with UID/GID 1000 permissions, perfectly matching our `node` user. No additional configuration required.
-
----
-
-This document should serve as a good guide to get started. Feel free to adapt and expand it according to your needs!
