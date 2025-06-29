@@ -19,13 +19,13 @@ services:
       - WORKSPACE_DIR # This env var is used by the host to know where to mount, not really by the container
       - SSH_KEY_DIR # Same as above
       - GH_TOKEN
-      # --- Language versioning via codex-universal ---
+      # --- Language versioning for the self-built image ---
       # Set these in your .env file or override here if needed to select specific language versions
       # Examples:
-      - CODEX_ENV_PYTHON_VERSION=${CODEX_ENV_PYTHON_VERSION:-} # Default to system/codex default if not set in .env
-      - CODEX_ENV_NODE_VERSION=${CODEX_ENV_NODE_VERSION:-}
-      - CODEX_ENV_RUST_VERSION=${CODEX_ENV_RUST_VERSION:-}
-      - CODEX_ENV_GO_VERSION=${CODEX_ENV_GO_VERSION:-}
-      - CODEX_ENV_SWIFT_VERSION=${CODEX_ENV_SWIFT_VERSION:-}
+      - APP_LANG_PYTHON_VERSION=${APP_LANG_PYTHON_VERSION:-} # Default to system/image default if not set in .env
+      - APP_LANG_NODE_VERSION=${APP_LANG_NODE_VERSION:-}
+      - APP_LANG_RUST_VERSION=${APP_LANG_RUST_VERSION:-}
+      - APP_LANG_GO_VERSION=${APP_LANG_GO_VERSION:-}
+      - APP_LANG_SWIFT_VERSION=${APP_LANG_SWIFT_VERSION:-}
     stdin_open: true
     tty: true

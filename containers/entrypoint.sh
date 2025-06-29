@@ -1,6 +1,24 @@
 #!/bin/bash
 set -e # Exit immediately if a command fails
 
+echo "--- Initializing Claude Code Environment ---"
+
+# Run the language setup script as root if possible, or with sudo.
+# This should happen before any user-specific setup.
+if [ "$(id -u)" -eq 0 ]; then
+    echo "Running setup_claude.sh as root..."
+    /opt/claude/setup_claude.sh
+else
+    echo "Attempting to run setup_claude.sh with sudo (current user: $(whoami))..."
+    if sudo /opt/claude/setup_claude.sh; then
+        echo "setup_claude.sh completed successfully with sudo."
+    else
+        echo "Warning: setup_claude.sh failed or sudo is not available. Language versions might not be configured as expected."
+    fi
+fi
+echo "--- Language setup complete. Continuing as user $(whoami) ---"
+
+
 PROJECT_DIR="/workspace"
 USER_SSH_DIR="$HOME/.ssh"
 # Fixed path where the user is expected to mount their private SSH key

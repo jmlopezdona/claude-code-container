@@ -1,12 +1,12 @@
-# Claude Code Container (Powered by OpenAI Codex Universal)
+# Claude Code Container (Self-Contained & Multi-Language)
 
-This document describes how to build and use a Docker image to run Claude Code securely and configurably. The solution now leverages the `ghcr.io/openai/codex-universal:latest` image as its base, providing a rich multi-language environment. It allows working with Git repositories (public and private via SSH), mounting local workspaces, activating Claude Code's YOLO mode, and persisting Claude Code's initial configuration.
+This document describes how to build and use a Docker image to run Claude Code securely and configurably. The solution now builds a self-contained image based on `ubuntu:24.04`, integrating the multi-language capabilities previously inherited from `codex-universal`. This provides greater control over the environment. It allows working with Git repositories (public and private via SSH), mounting local workspaces, activating Claude Code's YOLO mode, and persisting Claude Code's initial configuration.
 
 ## 1. Purpose
 
 The goal is to provide an isolated, reproducible, and multi-language environment for Claude Code that:
-- Inherits a comprehensive set of development tools from `codex-universal` (Python, Node.js, Go, Rust, Swift, Java, etc.).
-- Simplifies dependency management by relying on the pre-configured `codex-universal` base.
+- Includes a comprehensive set of development tools (Python, Node.js, Go, Rust, Swift, Java, Ruby, Bun, Bazel, etc.), built directly into the image.
+- Offers full control over the base image and installed dependencies.
 - Protects the host system from potentially dangerous operations (especially in YOLO mode).
 - Facilitates configuration for interacting with Git repositories.
 - Allows choosing between a mounted local workspace or cloning a Git repository.
@@ -42,27 +42,25 @@ This project uses environment variables for configuration. Before using the cont
    - `CLAUDE_YOLO_MODE`: Set to `true` only if you want to enable dangerous operations.
    - `GIT_REPO_URL`: Optional, for automatic repository cloning.
    - `GH_TOKEN`: Optional, your GitHub Personal Access Token for `gh` CLI authentication.
-   - `CODEX_ENV_PYTHON_VERSION`: Optional, specify Python version (e.g., "3.10", "3.11", "3.12").
-   - `CODEX_ENV_NODE_VERSION`: Optional, specify Node.js version (e.g., "18", "20", "22").
-   - (and similar `CODEX_ENV_*` for Go, Rust, Swift)
+   - `APP_LANG_PYTHON_VERSION`: Optional, specify Python version (e.g., "3.10.14", "3.11.9", "3.12.4").
+   - `APP_LANG_NODE_VERSION`: Optional, specify Node.js version (e.g., "18", "20", "22").
+   - (and similar `APP_LANG_*` for Go, Rust, Swift - see section 5 for details)
 
 **Note:** The `.env` file is ignored by Git to protect your sensitive information.
 
-## 3. Building the Docker Images
+## 3. Building the Docker Image
 
 ### 3.1. Core Changes & Single Image Strategy
 
-The project now uses a single Docker image named `claude-code-base` (though the service in `docker-compose.yml` is named `claude-code` for simplicity). This image inherits from `ghcr.io/openai/codex-universal:latest`, which comes pre-packaged with multiple versions of Python, Node.js, Go, Rust, Swift, Java, and common development tools.
+The project now uses a single Docker image named `claude-code-base` (the service in `docker-compose.yml` is named `claude-code`). This image is built from `ubuntu:24.04` and includes multiple versions of Python, Node.js, Go, Rust, Swift, Java, Ruby, Bun, Bazel and common development tools, directly in its Dockerfile.
 
-The `claude-code-base` image layers the Claude Code CLI and project-specific configurations on top of `codex-universal`. It is suitable for all tasks and languages supported by `codex-universal`. Language versions can be selected at runtime using `CODEX_ENV_*` environment variables.
-
-The previous language-specific image variant (`claude-code-python`) has been removed to simplify the project, as its functionality is fully covered by configuring the main `claude-code-base` image.
+The `claude-code-base` image layers the Claude Code CLI and project-specific configurations. Language versions can be selected at runtime using `APP_LANG_*` environment variables.
 
 ### 3.2. Build Options
 
 #### Option 1: Using the Build Script (Recommended)
 
-The build script `./build.sh` now exclusively builds the `claude-code-base` image. It will attempt to pull the latest `ghcr.io/openai/codex-universal:latest` before building.
+The build script `./build.sh` builds the `claude-code-base` image. It no longer pulls a specific upstream base image like `codex-universal` as all dependencies are defined in the local Dockerfile.
 
 ```bash
 # Build claude-code-base:latest
@@ -85,18 +83,16 @@ docker-compose build claude-code
 # or simply:
 docker-compose build
 
-# Run the service (requires .env file for GIT_USER_NAME, etc., and optionally CODEX_ENV_* vars)
+# Run the service (requires .env file for GIT_USER_NAME, etc., and optionally APP_LANG_* vars)
 docker-compose run --rm claude-code "My prompt for Claude"
-# Example for a Python project (set CODEX_ENV_PYTHON_VERSION in .env or pass it)
-# CODEX_ENV_PYTHON_VERSION=3.11 docker-compose run --rm claude-code "Analyze this Python code"
+# Example for a Python project (set APP_LANG_PYTHON_VERSION in .env or pass it)
+# APP_LANG_PYTHON_VERSION=3.11.9 docker-compose run --rm claude-code "Analyze this Python code"
 ```
 
 #### Option 3: Manual Docker Build
 
 ```bash
-# Ensure ghcr.io/openai/codex-universal:latest is pulled or available
-docker pull ghcr.io/openai/codex-universal:latest # Recommended
-
+# The Dockerfile builds from ubuntu:24.04. Docker will pull it if not available locally.
 # Build the claude-code-base image
 docker build -t claude-code-base:latest containers/
 ```
@@ -154,16 +150,16 @@ You can configure the container's behavior using the following environment varia
 - **`CLAUDE_YOLO_MODE`**: (Optional) Set to `"true"` to activate Claude Code's YOLO mode (`--dangerously-skip-permissions`). Default is `"false"`.
 - **`GIT_REPO_URL`**: (Optional) URL of the Git repository to clone if the workspace (`/workspace`) is empty.
 - **`GIT_HOST_DOMAIN`**: (Required if using SSH or `gh` CLI with a non-github.com host) The Git server domain (e.g., `"github.com"`, `"gitlab.com"`).
-- **`GH_TOKEN`**: (Optional) Your GitHub Personal Access Token (PAT) to authenticate the GitHub CLI (`gh`). `gh` is pre-installed in `codex-universal`.
+- **`GH_TOKEN`**: (Optional) Your GitHub Personal Access Token (PAT) to authenticate the GitHub CLI (`gh`). `gh` is pre-installed in the image.
 
-### Language Versioning (via `codex-universal`):
-The `codex-universal` base image allows specifying language versions. Set these in your `.env` file or pass them during `docker run`.
-- **`CODEX_ENV_PYTHON_VERSION`**: e.g., "3.10", "3.11.12", "3.12" (see `codex-universal` for supported versions)
-- **`CODEX_ENV_NODE_VERSION`**: e.g., "18", "20", "22"
-- **`CODEX_ENV_RUST_VERSION`**: e.g., "1.83.0", "1.87.0"
-- **`CODEX_ENV_GO_VERSION`**: e.g., "1.22.12", "1.23.8"
-- **`CODEX_ENV_SWIFT_VERSION`**: e.g., "5.10", "6.1"
-*Refer to the [OpenAI Codex Universal GitHub repository](https://github.com/openai/codex-universal) for the full list of supported languages, versions, and pre-installed tools (like Poetry, Ruff for Python; Yarn, PNPM for Node, etc.).*
+### Language Versioning (Self-Contained Image):
+The image includes multiple language runtimes. Specify desired versions using these environment variables in your `.env` file or during `docker run`.
+- **`APP_LANG_PYTHON_VERSION`**: e.g., "3.10.14", "3.11.9", "3.12.4" (see Dockerfile for installed versions).
+- **`APP_LANG_NODE_VERSION`**: e.g., "18", "20", "22" (see Dockerfile for installed NVM versions).
+- **`APP_LANG_RUST_VERSION`**: e.g., "stable", or a specific version like "1.75.0" (if installed via `rustup toolchain install`).
+- **`APP_LANG_GO_VERSION`**: e.g., "1.22.5" (the version installed in Dockerfile). Switching Go versions typically requires rebuilding the image or manually installing another version within a running container.
+- **`APP_LANG_SWIFT_VERSION`**: e.g., "5.10" (see Dockerfile for installed Swift version).
+*Refer to the `containers/Dockerfile` and `containers/setup_claude.sh` for details on installed languages and version management capabilities.*
 
 ### Host-Side Variables (for `docker-compose` or scripts, not directly used by container logic):
 - `WORKSPACE_DIR`: Local directory to mount as workspace (default: `./workspace` in `docker-compose.yml`).
@@ -173,8 +169,8 @@ The `codex-universal` base image allows specifying language versions. Set these 
 
 ### When to Use Key Variables
 
-| Use Case | GIT_USER_NAME | GIT_USER_EMAIL | GIT_HOST_DOMAIN | SSH Keys | `CODEX_ENV_*` |
-|----------|---------------|----------------|-----------------|----------|---------------|
+| Use Case | GIT_USER_NAME | GIT_USER_EMAIL | GIT_HOST_DOMAIN | SSH Keys | `APP_LANG_*` |
+|----------|---------------|----------------|-----------------|----------|--------------|
 | Read-only (clone/pull) | Optional | Optional | Yes (if SSH) | Yes (if private repo) | As needed |
 | Write (commit/push) | **Required** | **Required** | Yes (if SSH) | Yes | As needed |
 | Local work without Git | Not needed | Not needed | Not needed | Not needed | As needed |
@@ -183,7 +179,7 @@ The `codex-universal` base image allows specifying language versions. Set these 
 
 ## 6. Execution Modes
 
-The Claude Code container can be run in two main ways, typically using `claude-code-base` or `claude-code-python` (which is now very similar to base).
+The Claude Code container can be run in two main ways.
 
 ### 6.1. Interactive Mode
 
@@ -193,17 +189,17 @@ Claude Code starts and waits for your commands directly in the terminal. Use the
 
 ```bash
 # Using docker-compose (recommended - uses .env file automatically)
-# Set desired CODEX_ENV_* variables in your .env file (e.g., CODEX_ENV_PYTHON_VERSION="3.11")
+# Set desired APP_LANG_* variables in your .env file (e.g., APP_LANG_PYTHON_VERSION="3.11.9")
 docker-compose run --rm claude-code
 
 # Or with docker run, specifying the image claude-code-base:latest
-# Example: Running claude-code-base and specifying Python 3.11
+# Example: Running claude-code-base and specifying Python 3.11.9
 docker run --rm -it \
     -v "${CLAUDE_CONFIG_DIR:-~/.claude-code-container}:/home/node" \
     -v "${WORKSPACE_DIR:-./workspace}:/workspace" \
     -v "${SSH_KEY_DIR:-~/.ssh}:/tmp/ssh_key:ro" \
     --env-file .env \
-    -e CODEX_ENV_PYTHON_VERSION="3.11" \
+    -e APP_LANG_PYTHON_VERSION="3.11.9" \
     claude-code-base:latest
 ```
 
@@ -215,7 +211,7 @@ You pass a prompt or command directly to Claude Code, and the container will clo
 
 ```bash
 # Using docker-compose (recommended)
-# Ensure .env has CODEX_ENV_PYTHON_VERSION if the prompt is for a Python script, etc.
+# Ensure .env has APP_LANG_PYTHON_VERSION if the prompt is for a Python script, etc.
 docker-compose run --rm claude-code "Help me optimize this Python script"
 
 # Or with docker run
@@ -224,7 +220,7 @@ docker run --rm \
     -v "${WORKSPACE_DIR:-./workspace}:/workspace" \
     -v "${SSH_KEY_DIR:-~/.ssh}:/tmp/ssh_key:ro" \
     --env-file .env \
-    -e CODEX_ENV_PYTHON_VERSION="3.11" \ # Example for a Python script
+    -e APP_LANG_PYTHON_VERSION="3.11.9" \ # Example for a Python script
     claude-code-base:latest "Help me optimize this Python script"
 ```
 
@@ -235,22 +231,21 @@ Make sure to include the configuration volume mount (`-v ~/.claude-code-containe
 ### 7.1. Working with a Local Workspace
 
 ```bash
-# Example for a Python 3.12 project (set in .env or pass -e)
+# Example for a Python 3.12.4 project (set in .env or pass -e)
 docker run --rm -it \
     -v ~/.claude-code-container:/home/node \
     -v "$(pwd)/my_local_project:/workspace" \
     -e GIT_USER_NAME="My Name" \
     -e GIT_USER_EMAIL="my@email.com" \
-    -e CODEX_ENV_PYTHON_VERSION="3.12" \
+    -e APP_LANG_PYTHON_VERSION="3.12.4" \
     claude-code-base:latest
 
-# Example for a Go project (set in .env or pass -e)
+# Example for a Go project (using the default Go 1.22.5 installed in the image)
 docker run --rm -it \
     -v ~/.claude-code-container:/home/node \
     -v "$(pwd)/my_go_project:/workspace" \
     -e GIT_USER_NAME="My Name" \
     -e GIT_USER_EMAIL="my@email.com" \
-    -e CODEX_ENV_GO_VERSION="1.22" \
     claude-code-base:latest
 ```
 (Replace `$(pwd)/my_local_project` with the path to your project).
@@ -340,18 +335,18 @@ docker-compose run --rm claude-code gh issue list
 
 ## 8. Important Notes and Additional Considerations
 
-- **Multi-Language Support**: The `claude-code-base` image (via `codex-universal`) supports Python, Node.js, Go, Rust, Swift, Java, Ruby, Bun, and Bazel. Configure specific versions using `CODEX_ENV_*` variables (e.g., `CODEX_ENV_PYTHON_VERSION=3.11`, `CODEX_ENV_GO_VERSION=1.22`). See the `codex-universal` [documentation](https://github.com/openai/codex-universal) for supported versions and tools.
+- **Multi-Language Support**: The `claude-code-base` image is built with support for Python, Node.js, Go, Rust, Swift, Java, Ruby, Bun, and Bazel. Configure specific versions using `APP_LANG_*` environment variables (e.g., `APP_LANG_PYTHON_VERSION="3.11.9"`, `APP_LANG_NODE_VERSION="20"`). Refer to the `containers/Dockerfile` and `containers/setup_claude.sh` for installed versions and capabilities.
 - **Volume Permissions:** The image uses a non-root user (`node`) with UID/GID 1000, compatible with Colima on macOS. This enables the use of Claude Code's YOLO mode while maintaining R/W access to mounted volumes.
 - **SSH Key Security:**
   - Mount the SSH key as a read-only file (`:ro`) for better security.
   - Use dedicated SSH keys with minimal necessary privileges.
   - Never include SSH keys directly in your `Dockerfile`.
-- **Modifying `entrypoint.sh`:** If you need more complex logic, you can extend the `entrypoint.sh`.
-- **Technology Stack Simplification:** The project now uses a single primary image: `claude-code-base`. For different languages or versions, configure this single image using `CODEX_ENV_*` environment variables.
+- **Modifying `entrypoint.sh` or `setup_claude.sh`:** If you need more complex logic or different language setups, you can extend these scripts.
+- **Technology Stack Simplification & Control:** The project uses a single primary image: `claude-code-base`, built from `ubuntu:24.04`. This provides full control over the included tools and versions. For different languages or versions, configure this single image using `APP_LANG_*` environment variables and the `setup_claude.sh` script.
 
 ### Important Note for macOS Users with Colima and Volume Permissions
 
-The image uses a non-root user (`node`) with UID/GID 1000, which is compatible with Colima's default configuration on macOS. This solves both the volume permissions problem and Claude Code's YOLO mode restriction.
+The image uses a non-root user (`node`) with UID/GID 1000, which is compatible with Colima's default configuration on macOS. This addresses potential volume permissions problem and Claude Code's YOLO mode restriction.
 
 **Advantages of Non-Root User with UID 1000:**
 - ✅ Full R/W access to volumes mounted from macOS via Colima
