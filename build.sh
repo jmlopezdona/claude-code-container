@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Build script for Claude Code Docker images
+# Build script for the Claude Code Docker image
 set -e
 
 # Colors for output
@@ -11,20 +11,20 @@ NC='\033[0m' # No Color
 
 # Default values
 IMAGE_TAG="latest"
-BUILD_TYPE="all"
+IMAGE_NAME="claude-code-base" # This is now the only image
 
 # Function to display usage
 usage() {
     echo "Usage: $0 [OPTIONS]"
     echo "Options:"
     echo "  -t, --tag TAG        Image tag (default: latest)"
-    echo "  -b, --build TYPE     Build type: base, python, or all (default: all)"
+    echo "  -n, --name NAME      Image name (default: claude-code-base)"
     echo "  -h, --help           Show this help message"
     echo ""
     echo "Examples:"
-    echo "  $0                           # Build all images with 'latest' tag"
-    echo "  $0 -t v1.0.0                # Build all images with 'v1.0.0' tag"
-    echo "  $0 -b python -t dev          # Build only python image with 'dev' tag"
+    echo "  $0                           # Build claude-code-base:latest"
+    echo "  $0 -t v1.0.0                # Build claude-code-base:v1.0.0"
+    echo "  $0 -n my-claude-app -t dev   # Build my-claude-app:dev"
 }
 
 # Parse command line arguments
@@ -34,8 +34,8 @@ while [[ $# -gt 0 ]]; do
             IMAGE_TAG="$2"
             shift 2
             ;;
-        -b|--build)
-            BUILD_TYPE="$2"
+        -n|--name)
+            IMAGE_NAME="$2"
             shift 2
             ;;
         -h|--help)
@@ -51,60 +51,45 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Function to build an image
+# Usage: build_image <context_path> <dockerfile_path> <image_name_to_build> <image_tag_to_build> <base_image_to_pull>
 build_image() {
     local context=$1
     local dockerfile=$2
-    local image_name=$3
-    local tag=$4
+    local image_name_to_build=$3
+    local image_tag_to_build=$4
+    local base_image_to_pull=$5
+
+    echo -e "${YELLOW}Building $image_name_to_build:$image_tag_to_build...${NC}"
+
+    # Attempt to pull the ultimate base image (codex-universal) to ensure it's up-to-date
+    if [ -n "$base_image_to_pull" ]; then
+        echo -e "${YELLOW}Attempting to pull $base_image_to_pull to ensure it's the latest...${NC}"
+        if docker pull "$base_image_to_pull"; then
+            echo -e "${GREEN}✓ Successfully pulled/updated $base_image_to_pull${NC}"
+        else
+            echo -e "${YELLOW}⚠️  Could not pull $base_image_to_pull. Will use local version if available.${NC}"
+        fi
+    fi
     
-    echo -e "${YELLOW}Building $image_name:$tag...${NC}"
-    docker build -f "$dockerfile" -t "$image_name:$tag" "$context"
+    docker build -f "$dockerfile" -t "$image_name_to_build:$image_tag_to_build" "$context"
     
     if [ $? -eq 0 ]; then
-        echo -e "${GREEN}✓ Successfully built $image_name:$tag${NC}"
+        echo -e "${GREEN}✓ Successfully built $image_name_to_build:$image_tag_to_build${NC}"
     else
-        echo -e "${RED}✗ Failed to build $image_name:$tag${NC}"
+        echo -e "${RED}✗ Failed to build $image_name_to_build:$image_tag_to_build${NC}"
         exit 1
     fi
 }
 
 # Main build logic
-echo -e "${YELLOW}Starting Claude Code Docker builds...${NC}"
+echo -e "${YELLOW}Starting Claude Code Docker build (Image: $IMAGE_NAME, Tag: $IMAGE_TAG)...${NC}"
 
-case $BUILD_TYPE in
-    "base")
-        build_image "containers" "containers/Dockerfile" "claude-code-base" "$IMAGE_TAG"
-        ;;
-    "python")
-        # Build base first if it doesn't exist
-        if [ -z "$(docker images -q claude-code-base:$IMAGE_TAG 2> /dev/null)" ]; then
-            echo -e "${YELLOW}Base image not found, building it first...${NC}"
-            build_image "containers" "containers/Dockerfile" "claude-code-base" "$IMAGE_TAG"
-        fi
-        build_image "containers/python" "containers/python/Dockerfile" "claude-code-python" "$IMAGE_TAG"
-        ;;
-    "all")
-        build_image "containers" "containers/Dockerfile" "claude-code-base" "$IMAGE_TAG"
-        build_image "containers/python" "containers/python/Dockerfile" "claude-code-python" "$IMAGE_TAG"
-        ;;
-    *)
-        echo -e "${RED}Error: Invalid build type '$BUILD_TYPE'. Use 'base', 'python', or 'all'.${NC}"
-        exit 1
-        ;;
-esac
+CODEX_UNIVERSAL_IMAGE="ghcr.io/openai/codex-universal:latest" # The ultimate base for claude-code-base
 
-echo -e "${GREEN}✓ All builds completed successfully!${NC}"
+build_image "containers" "containers/Dockerfile" "$IMAGE_NAME" "$IMAGE_TAG" "$CODEX_UNIVERSAL_IMAGE"
 
-# Display built images
-echo -e "\n${YELLOW}Built images:${NC}"
-case $BUILD_TYPE in
-    "base")
-        docker images claude-code-base:$IMAGE_TAG
-        ;;
-    "python")
-        docker images claude-code-python:$IMAGE_TAG
-        ;;
-    "all")
-        docker images | grep -E "claude-code-(base|python)" | grep $IMAGE_TAG
-        ;;
-esac
+echo -e "${GREEN}✓ Build completed successfully!${NC}"
+
+# Display built image
+echo -e "\n${YELLOW}Built image:${NC}"
+docker images "$IMAGE_NAME:$IMAGE_TAG"

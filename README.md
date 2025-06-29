@@ -1,12 +1,13 @@
-# Claude Code Container
+# Claude Code Container (Powered by OpenAI Codex Universal)
 
-This document describes how to build and use a Docker image to run Claude Code securely and configurably. The solution allows working with Git repositories (public and private via SSH), mounting local workspaces, activating Claude Code's YOLO mode, and persisting Claude Code's initial configuration to avoid repeating it.
+This document describes how to build and use a Docker image to run Claude Code securely and configurably. The solution now leverages the `ghcr.io/openai/codex-universal:latest` image as its base, providing a rich multi-language environment. It allows working with Git repositories (public and private via SSH), mounting local workspaces, activating Claude Code's YOLO mode, and persisting Claude Code's initial configuration.
 
 ## 1. Purpose
 
-The goal is to provide an isolated and reproducible environment for Claude Code that:
+The goal is to provide an isolated, reproducible, and multi-language environment for Claude Code that:
+- Inherits a comprehensive set of development tools from `codex-universal` (Python, Node.js, Go, Rust, Swift, Java, etc.).
+- Simplifies dependency management by relying on the pre-configured `codex-universal` base.
 - Protects the host system from potentially dangerous operations (especially in YOLO mode).
-- Simplifies dependency management (Node.js, Claude Code CLI, Git, etc.).
 - Facilitates configuration for interacting with Git repositories.
 - Allows choosing between a mounted local workspace or cloning a Git repository.
 - **Persists Claude Code's initial configuration (login, API keys, editor preferences) between sessions.**
@@ -15,7 +16,7 @@ The goal is to provide an isolated and reproducible environment for Claude Code 
 
 - **Docker:** You must have Docker installed and running on your system.
 - **SSH Key:** To interact with private Git repositories using SSH, an SSH private key is required.
-- **Claude Code Subscription or Anthropic API KEY** Required for Claude Code initial configuration
+- **Claude Code Subscription or Anthropic API KEY:** Required for Claude Code initial configuration.
 - **Configuration Directory on Host:** An empty directory on your host system where Claude Code's persistent configuration will be saved. Example: `~/.claude-code-container`.
 
 ## 2.1. Environment Configuration
@@ -32,70 +33,79 @@ This project uses environment variables for configuration. Before using the cont
    nano .env  # or your preferred editor
    ```
 
-3. **Key variables to configure:**
-   - `GIT_USER_NAME` and `GIT_USER_EMAIL`: Required for Git commits
-   - `GIT_HOST_DOMAIN`: Required for SSH authentication (e.g., github.com)
-   - `WORKSPACE_DIR`: Local directory to mount as workspace (default: ./workspace)
-   - `CLAUDE_CONFIG_DIR`: Directory for persistent Claude Code configuration (default: ~/.claude-code-container)
-   - `SSH_KEY_DIR`: Directory containing SSH keys (default: ~/.ssh)
-   - `CLAUDE_YOLO_MODE`: Set to `true` only if you want to enable dangerous operations
-   - `GIT_REPO_URL`: Optional, for automatic repository cloning
-   - `GH_TOKEN`: Optional, your GitHub Personal Access Token for `gh` CLI authentication. See section below for details.
+3. **Key variables to configure (see `.env.example` for full list and details):**
+   - `GIT_USER_NAME` and `GIT_USER_EMAIL`: Required for Git commits.
+   - `GIT_HOST_DOMAIN`: Required for SSH authentication (e.g., github.com).
+   - `WORKSPACE_DIR`: Local directory to mount as workspace (default: ./workspace).
+   - `CLAUDE_CONFIG_DIR`: Directory for persistent Claude Code configuration (default: ~/.claude-code-container).
+   - `SSH_KEY_DIR`: Directory containing SSH keys (default: ~/.ssh).
+   - `CLAUDE_YOLO_MODE`: Set to `true` only if you want to enable dangerous operations.
+   - `GIT_REPO_URL`: Optional, for automatic repository cloning.
+   - `GH_TOKEN`: Optional, your GitHub Personal Access Token for `gh` CLI authentication.
+   - `CODEX_ENV_PYTHON_VERSION`: Optional, specify Python version (e.g., "3.10", "3.11", "3.12").
+   - `CODEX_ENV_NODE_VERSION`: Optional, specify Node.js version (e.g., "18", "20", "22").
+   - (and similar `CODEX_ENV_*` for Go, Rust, Swift)
 
 **Note:** The `.env` file is ignored by Git to protect your sensitive information.
 
 ## 3. Building the Docker Images
 
-### 3.1. Available Image Variants
+### 3.1. Core Changes & Single Image Strategy
 
-This repository provides multiple Docker image variants for different development environments:
+The project now uses a single Docker image named `claude-code-base` (though the service in `docker-compose.yml` is named `claude-code` for simplicity). This image inherits from `ghcr.io/openai/codex-universal:latest`, which comes pre-packaged with multiple versions of Python, Node.js, Go, Rust, Swift, Java, and common development tools.
 
-- **Base Image** (`containers/Dockerfile`): Node.js + Claude Code CLI - suitable for general usage
-- **Python Image** (`containers/python/Dockerfile`): Base + Python 3, pip, venv, and build tools
+The `claude-code-base` image layers the Claude Code CLI and project-specific configurations on top of `codex-universal`. It is suitable for all tasks and languages supported by `codex-universal`. Language versions can be selected at runtime using `CODEX_ENV_*` environment variables.
+
+The previous language-specific image variant (`claude-code-python`) has been removed to simplify the project, as its functionality is fully covered by configuring the main `claude-code-base` image.
 
 ### 3.2. Build Options
 
 #### Option 1: Using the Build Script (Recommended)
 
+The build script `./build.sh` now exclusively builds the `claude-code-base` image. It will attempt to pull the latest `ghcr.io/openai/codex-universal:latest` before building.
+
 ```bash
-# Build all images
+# Build claude-code-base:latest
 ./build.sh
 
-# Build specific image
-./build.sh -b python -t dev
-
-# Build with custom tag
+# Build claude-code-base with a custom tag
 ./build.sh -t v1.0.0
+
+# Build with a custom image name and tag
+./build.sh -n my-claude-app -t dev
 ```
 
 #### Option 2: Using Docker Compose (Recommended for development)
 
+The `docker-compose.yml` file now defines a single service, `claude-code`.
+
 ```bash
-# Build all services
+# Build the claude-code service (which builds the claude-code-base image)
+docker-compose build claude-code
+# or simply:
 docker-compose build
 
-# Build specific service
-docker-compose build claude-python
-
-# Run services (requires .env file)
-docker-compose up claude-python
+# Run the service (requires .env file for GIT_USER_NAME, etc., and optionally CODEX_ENV_* vars)
+docker-compose run --rm claude-code "My prompt for Claude"
+# Example for a Python project (set CODEX_ENV_PYTHON_VERSION in .env or pass it)
+# CODEX_ENV_PYTHON_VERSION=3.11 docker-compose run --rm claude-code "Analyze this Python code"
 ```
 
 #### Option 3: Manual Docker Build
 
 ```bash
-# Base image
-docker build -t claude-code-base containers/
+# Ensure ghcr.io/openai/codex-universal:latest is pulled or available
+docker pull ghcr.io/openai/codex-universal:latest # Recommended
 
-# Python image (requires base image first)
-docker build -t claude-code-python containers/python/
+# Build the claude-code-base image
+docker build -t claude-code-base:latest containers/
 ```
 
 ## 4. Claude Code Configuration Persistence
 
 Claude Code may require initial interactive configuration (login, API key, preferences). To avoid repeating this process with each container run, it's recommended to persist Claude Code's configuration directory using a Docker volume.
 
-Based on analysis, Claude Code saves its configuration in multiple files within the `/home/node` directory in the container, including `/home/node/.claude/` and `/home/node/.claude.json`.
+Based on analysis, Claude Code saves its configuration in multiple files within the `/home/node` directory in the container (the user inside the container is `node`, UID 1000), including `/home/node/.claude/` and `/home/node/.claude.json`.
 
 **Procedure:**
 
@@ -112,7 +122,7 @@ Based on analysis, Claude Code saves its configuration in multiple files within 
         -v "/path/to/your/project:/workspace" \
         -e GIT_USER_NAME="Your Name" \
         -e GIT_USER_EMAIL="your@email.com" \
-        claude-code-container
+    claude-code-base # Use the new base image name
     ```
     - During this session, perform the interactive configuration that Claude Code requests (login, API key, etc.).
     - The resulting configuration files (`.claude.json`, `.claude/`, `.gitconfig`, etc.) will be saved in `~/.claude-code-container` on your host machine.
@@ -125,68 +135,76 @@ Based on analysis, Claude Code saves its configuration in multiple files within 
         -v "/path/to/your/project:/workspace" \
         -e GIT_USER_NAME="Your Name" \
         -e GIT_USER_EMAIL="your@email.com" \
-        claude-code-container "My prompt for Claude"
+        claude-code-base "My prompt for Claude" # Use the new base image name
     ```
 
 **Important about Persistent Configuration Security!**
 The `~/.claude-code-container` directory (or whichever you choose) on your host will now contain sensitive information like your Anthropic credentials or API keys.
 - **Protect this directory on your host system appropriately.**
 - **Don't include this directory in Git repositories** if it contains secrets. Add it to your `.gitignore`.
-- The `claude-code-container` Docker image itself will not contain these secrets, which is a good security practice. The secrets reside on your local filesystem, managed through the volume.
+- The `claude-code-base` Docker image itself will not contain these secrets, which is a good security practice. The secrets reside on your local filesystem, managed through the volume.
 
 ## 5. Configurable Environment Variables
 
-You can configure the container's behavior using the following environment variables when running `docker run -e VARIABLE=value ...`:
+You can configure the container's behavior using the following environment variables (e.g., in your `.env` file or with `docker run -e VARIABLE=value ...`):
 
-### Git Variables (Important for Commits)
-- **`GIT_USER_NAME`**: Username for Git commits. Example: `"Your Name"`.
-  - **Required for commits**: Without this variable, Git cannot create commits
-  - **SSH Authentication**: SSH keys allow access, but Git still needs to know who you are
-  - If not specified, a generic value is used (not recommended for real commits)
-- **`GIT_USER_EMAIL`**: Email for Git commits. Example: `"your@email.com"`.
-  - **Required for commits**: Git requires email to identify the author
-  - **Recommendation**: Use the same email associated with your GitHub/GitLab account
+### Core Claude Container Variables:
+- **`GIT_USER_NAME`**: Username for Git commits. Example: `"Your Name"`. (Required for commits)
+- **`GIT_USER_EMAIL`**: Email for Git commits. Example: `"your@email.com"`. (Required for commits)
+- **`CLAUDE_YOLO_MODE`**: (Optional) Set to `"true"` to activate Claude Code's YOLO mode (`--dangerously-skip-permissions`). Default is `"false"`.
+- **`GIT_REPO_URL`**: (Optional) URL of the Git repository to clone if the workspace (`/workspace`) is empty.
+- **`GIT_HOST_DOMAIN`**: (Required if using SSH or `gh` CLI with a non-github.com host) The Git server domain (e.g., `"github.com"`, `"gitlab.com"`).
+- **`GH_TOKEN`**: (Optional) Your GitHub Personal Access Token (PAT) to authenticate the GitHub CLI (`gh`). `gh` is pre-installed in `codex-universal`.
 
-### Behavior Variables
-- **`CLAUDE_YOLO_MODE`**: (Optional) Set to `"true"` to activate Claude Code's YOLO mode (`--dangerously-skip-permissions`). Default is `"false"` (safe mode).
-- **`GIT_REPO_URL`**: (Optional) URL of the Git repository to clone if the workspace (`/workspace`) is empty. Example: `"https://github.com/user/repo.git"` or `"git@github.com:user/repo.git"`.
-- **`GIT_HOST_DOMAIN`**: (Required if using SSH or `gh` CLI with a non-github.com host) The Git server domain for `ssh-keyscan` and `gh auth`. Example: `"github.com"`, `"gitlab.com"`, `"enterprise.internal"`.
-- **`GH_TOKEN`**: (Optional) Your GitHub Personal Access Token (PAT) to authenticate the GitHub CLI (`gh`).
-  - If provided, the `entrypoint.sh` script will attempt to log in `gh` using this token.
-  - This allows you to use `gh` commands that require authentication, like `gh pr create`, `gh issue create`, etc.
-  - **Required scopes for the PAT**: `repo`, `read:org`, and `gist` are generally recommended for full `gh` functionality.
-  - The authentication status of `gh` is persisted in the `/home/node/.config/gh` directory inside the container, which is covered by the `~/.claude-code-container` host volume mount.
-  - If `GIT_HOST_DOMAIN` is set to something other than `github.com`, `gh` will attempt to authenticate against that enterprise host.
+### Language Versioning (via `codex-universal`):
+The `codex-universal` base image allows specifying language versions. Set these in your `.env` file or pass them during `docker run`.
+- **`CODEX_ENV_PYTHON_VERSION`**: e.g., "3.10", "3.11.12", "3.12" (see `codex-universal` for supported versions)
+- **`CODEX_ENV_NODE_VERSION`**: e.g., "18", "20", "22"
+- **`CODEX_ENV_RUST_VERSION`**: e.g., "1.83.0", "1.87.0"
+- **`CODEX_ENV_GO_VERSION`**: e.g., "1.22.12", "1.23.8"
+- **`CODEX_ENV_SWIFT_VERSION`**: e.g., "5.10", "6.1"
+*Refer to the [OpenAI Codex Universal GitHub repository](https://github.com/openai/codex-universal) for the full list of supported languages, versions, and pre-installed tools (like Poetry, Ruff for Python; Yarn, PNPM for Node, etc.).*
 
-### When to Use Each Variable
+### Host-Side Variables (for `docker-compose` or scripts, not directly used by container logic):
+- `WORKSPACE_DIR`: Local directory to mount as workspace (default: `./workspace` in `docker-compose.yml`).
+- `CLAUDE_CONFIG_DIR`: Directory for persistent Claude Code configuration (default: `~/.claude-code-container` in `docker-compose.yml`).
+- `SSH_KEY_DIR`: Directory containing SSH keys (default: `~/.ssh` in `docker-compose.yml`).
 
-| Use Case | GIT_USER_NAME | GIT_USER_EMAIL | GIT_HOST_DOMAIN | SSH Keys |
-|----------|---------------|----------------|-----------------|----------|
-| Read-only (clone/pull) | Optional | Optional | Yes (if SSH) | Yes (if private repo) |
-| Write (commit/push) | **Required** | **Required** | Yes (if SSH) | Yes |
-| Local work without Git | Not needed | Not needed | Not needed | Not needed |
+
+### When to Use Key Variables
+
+| Use Case | GIT_USER_NAME | GIT_USER_EMAIL | GIT_HOST_DOMAIN | SSH Keys | `CODEX_ENV_*` |
+|----------|---------------|----------------|-----------------|----------|---------------|
+| Read-only (clone/pull) | Optional | Optional | Yes (if SSH) | Yes (if private repo) | As needed |
+| Write (commit/push) | **Required** | **Required** | Yes (if SSH) | Yes | As needed |
+| Local work without Git | Not needed | Not needed | Not needed | Not needed | As needed |
+| Specific Language Version | Optional | Optional | Optional | Optional | **Required** |
+
 
 ## 6. Execution Modes
 
-The Claude Code container can be run in two main ways:
+The Claude Code container can be run in two main ways, typically using `claude-code-base` or `claude-code-python` (which is now very similar to base).
 
 ### 6.1. Interactive Mode
 
-Claude Code starts and waits for your commands directly in the terminal.
+Claude Code starts and waits for your commands directly in the terminal. Use the `claude-code` service defined in `docker-compose.yml`.
 
 **Examples:**
 
 ```bash
 # Using docker-compose (recommended - uses .env file automatically)
-docker-compose run --rm claude-python
+# Set desired CODEX_ENV_* variables in your .env file (e.g., CODEX_ENV_PYTHON_VERSION="3.11")
+docker-compose run --rm claude-code
 
-# Or with docker run (requires manual environment variables)
+# Or with docker run, specifying the image claude-code-base:latest
+# Example: Running claude-code-base and specifying Python 3.11
 docker run --rm -it \
     -v "${CLAUDE_CONFIG_DIR:-~/.claude-code-container}:/home/node" \
     -v "${WORKSPACE_DIR:-./workspace}:/workspace" \
     -v "${SSH_KEY_DIR:-~/.ssh}:/tmp/ssh_key:ro" \
     --env-file .env \
-    claude-code-python
+    -e CODEX_ENV_PYTHON_VERSION="3.11" \
+    claude-code-base:latest
 ```
 
 ### 6.2. Autonomous Mode (Non-Interactive)
@@ -197,7 +215,8 @@ You pass a prompt or command directly to Claude Code, and the container will clo
 
 ```bash
 # Using docker-compose (recommended)
-docker-compose run --rm claude-python "Help me optimize this Python script"
+# Ensure .env has CODEX_ENV_PYTHON_VERSION if the prompt is for a Python script, etc.
+docker-compose run --rm claude-code "Help me optimize this Python script"
 
 # Or with docker run
 docker run --rm \
@@ -205,31 +224,34 @@ docker run --rm \
     -v "${WORKSPACE_DIR:-./workspace}:/workspace" \
     -v "${SSH_KEY_DIR:-~/.ssh}:/tmp/ssh_key:ro" \
     --env-file .env \
-    claude-code-python "Help me optimize this Python script"
+    -e CODEX_ENV_PYTHON_VERSION="3.11" \ # Example for a Python script
+    claude-code-base:latest "Help me optimize this Python script"
 ```
 
 ## 7. Use Cases and Detailed `docker run` Commands
 
-Make sure to include the configuration volume mount (`-v ~/.claude-code-container:/home/node`) in most commands if you want the configuration to load.
+Make sure to include the configuration volume mount (`-v ~/.claude-code-container:/home/node`) in most commands if you want the configuration to load. Use `claude-code-base:latest` as the image name when using `docker run`.
 
 ### 7.1. Working with a Local Workspace
 
 ```bash
-# Base image for general projects
+# Example for a Python 3.12 project (set in .env or pass -e)
 docker run --rm -it \
     -v ~/.claude-code-container:/home/node \
     -v "$(pwd)/my_local_project:/workspace" \
     -e GIT_USER_NAME="My Name" \
     -e GIT_USER_EMAIL="my@email.com" \
-    claude-code-base
+    -e CODEX_ENV_PYTHON_VERSION="3.12" \
+    claude-code-base:latest
 
-# Python image for Python projects
+# Example for a Go project (set in .env or pass -e)
 docker run --rm -it \
     -v ~/.claude-code-container:/home/node \
-    -v "$(pwd)/my_python_project:/workspace" \
+    -v "$(pwd)/my_go_project:/workspace" \
     -e GIT_USER_NAME="My Name" \
     -e GIT_USER_EMAIL="my@email.com" \
-    claude-code-python
+    -e CODEX_ENV_GO_VERSION="1.22" \
+    claude-code-base:latest
 ```
 (Replace `$(pwd)/my_local_project` with the path to your project).
 
@@ -241,7 +263,7 @@ docker run --rm -it \
     -e GIT_REPO_URL="https://github.com/someuser/some-public-repo.git" \
     -e GIT_USER_NAME="My Name" \
     -e GIT_USER_EMAIL="my@email.com" \
-    claude-code-container "analyze the project structure"
+    claude-code-base:latest "analyze the project structure"
 ```
 
 ### 7.3. Clone/Work with a Private Repository using SSH
@@ -250,19 +272,17 @@ Mount your SSH private key (read-only is good practice) and specify the `GIT_HOS
 
 **For read-only (clone/pull):**
 ```bash
-# Read-only - GIT_USER_NAME and GIT_USER_EMAIL optional
 docker run --rm -it \
     -v ~/.claude-code-container:/home/node \
     -v ~/.ssh/id_rsa_github:/tmp/ssh_key/id_rsa:ro \
     -v "$(pwd)/my_private_project:/workspace" \
     -e GIT_HOST_DOMAIN="github.com" \
     -e GIT_REPO_URL="git@github.com:your_user/your_private_repo.git" \
-    claude-code-container
+    claude-code-base:latest
 ```
 
 **For write operations (commit/push):**
 ```bash
-# Write operations - GIT_USER_NAME and GIT_USER_EMAIL REQUIRED
 docker run --rm -it \
     -v ~/.claude-code-container:/home/node \
     -v ~/.ssh/id_rsa_github:/tmp/ssh_key/id_rsa:ro \
@@ -271,15 +291,15 @@ docker run --rm -it \
     -e GIT_USER_NAME="My Name" \
     -e GIT_USER_EMAIL="my@email.com" \
     -e GIT_REPO_URL="git@github.com:your_user/your_private_repo.git" \
-    claude-code-container
+    claude-code-base:latest
 ```
 
 **Notes about SSH and Git:**
-- **SSH Keys**: Provide authentication (permission to access the repository)
-- **user.name/user.email**: Provide identification (who makes the commits)
-- The `entrypoint.sh` will copy the mounted key to `~/.ssh/id_rsa` inside the container
-- `GIT_HOST_DOMAIN` is crucial for adding the host to `known_hosts`
-- **Without user.name/user.email**: Commits will fail with Git error
+- **SSH Keys**: Provide authentication (permission to access the repository).
+- **`user.name`/`user.email`**: Provide identification (who makes the commits).
+- The `entrypoint.sh` will copy the mounted key to `~/.ssh/id_rsa` inside the container.
+- `GIT_HOST_DOMAIN` is crucial for adding the host to `known_hosts`.
+- **Without `user.name`/`user.email`**: Commits will fail with Git error.
 
 ### 7.4. Activate YOLO Mode
 
@@ -292,44 +312,42 @@ docker run --rm -it \
     -e GIT_USER_NAME="My Name" \
     -e GIT_USER_EMAIL="my@email.com" \
     -e CLAUDE_YOLO_MODE="true" \
-    claude-code-container "delete all .log files"
+    claude-code-base:latest "delete all .log files"
 ```
 **Use YOLO mode with extreme caution, especially with write access to your files!**
 
 ### 7.5. Using GitHub CLI (`gh`)
 
-If you have provided a `GH_TOKEN` in your `.env` file (or directly via `-e GH_TOKEN=your_token`), the GitHub CLI will be authenticated automatically. You can then use `gh` commands inside the container.
+If you have provided a `GH_TOKEN` in your `.env` file (or directly via `-e GH_TOKEN=your_token`), the GitHub CLI (`gh`, pre-installed in `codex-universal`) will be authenticated automatically.
 
 ```bash
 # Example: Create a pull request (assuming you are in a git repo with changes)
+# Use docker-compose to easily pick up .env variables
+docker-compose run --rm claude-code bash -c "git add . && git commit -m 'feat: new feature' && gh pr create --fill"
+
+# Or with docker run
 docker run --rm -it \
     -v ~/.claude-code-container:/home/node \
     -v "$(pwd)/my_local_project:/workspace" \
-    --env-file .env \
-    claude-code-base bash -c "git add . && git commit -m 'feat: new feature' && gh pr create --fill"
+    --env-file .env \ # .env should contain GH_TOKEN, GIT_USER_NAME, GIT_USER_EMAIL
+    claude-code-base:latest bash -c "git add . && git commit -m 'feat: new feature' && gh pr create --fill"
 
 # Example: List issues
-docker run --rm -it \
-    -v ~/.claude-code-container:/home/node \
-    -v "$(pwd)/my_local_project:/workspace" \
-    --env-file .env \
-    claude-code-base gh issue list
+docker-compose run --rm claude-code gh issue list
 ```
 - Remember to set `GIT_HOST_DOMAIN` if you are using `gh` with a GitHub Enterprise instance.
 - The `gh` configuration (including authentication) is stored in `/home/node/.config/gh` within the container and will be persisted on your host via the `~/.claude-code-container` volume mount.
 
 ## 8. Important Notes and Additional Considerations
 
+- **Multi-Language Support**: The `claude-code-base` image (via `codex-universal`) supports Python, Node.js, Go, Rust, Swift, Java, Ruby, Bun, and Bazel. Configure specific versions using `CODEX_ENV_*` variables (e.g., `CODEX_ENV_PYTHON_VERSION=3.11`, `CODEX_ENV_GO_VERSION=1.22`). See the `codex-universal` [documentation](https://github.com/openai/codex-universal) for supported versions and tools.
 - **Volume Permissions:** The image uses a non-root user (`node`) with UID/GID 1000, compatible with Colima on macOS. This enables the use of Claude Code's YOLO mode while maintaining R/W access to mounted volumes.
 - **SSH Key Security:**
   - Mount the SSH key as a read-only file (`:ro`) for better security.
   - Use dedicated SSH keys with minimal necessary privileges.
   - Never include SSH keys directly in your `Dockerfile`.
 - **Modifying `entrypoint.sh`:** If you need more complex logic, you can extend the `entrypoint.sh`.
-- **Technology Stack:** Multiple Docker images are provided in the `containers/` directory:
-  - **Base image** (`claude-code-base`): For documentation tasks or general projects
-  - **Python image** (`claude-code-python`): Includes Python 3, pip, venv, and build tools for Python development
-  - For other languages (Java, Go, etc.), create new directories under `containers/` following the same pattern.
+- **Technology Stack Simplification:** The project now uses a single primary image: `claude-code-base`. For different languages or versions, configure this single image using `CODEX_ENV_*` environment variables.
 
 ### Important Note for macOS Users with Colima and Volume Permissions
 

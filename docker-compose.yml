@@ -1,11 +1,11 @@
 version: '3.8'
 
 services:
-  claude-base:
+  claude-code: # Renamed from claude-base for clarity as it's the sole service now
     build:
       context: containers
       dockerfile: Dockerfile
-    image: claude-code-base:latest
+    image: claude-code-base:latest # The image name remains claude-code-base as per Dockerfile
     volumes:
       - ${CLAUDE_CONFIG_DIR:-~/.claude-code-container}:/home/node
       - ${WORKSPACE_DIR:-./workspace}:/workspace
@@ -16,31 +16,16 @@ services:
       - CLAUDE_YOLO_MODE
       - GIT_REPO_URL
       - GIT_HOST_DOMAIN
-      - WORKSPACE_DIR
-      - SSH_KEY_DIR
+      - WORKSPACE_DIR # This env var is used by the host to know where to mount, not really by the container
+      - SSH_KEY_DIR # Same as above
       - GH_TOKEN
-    stdin_open: true
-    tty: true
-
-  claude-python:
-    build:
-      context: containers/python
-      dockerfile: Dockerfile
-    image: claude-code-python:latest
-    depends_on:
-      - claude-base
-    volumes:
-      - ${CLAUDE_CONFIG_DIR:-~/.claude-code-container}:/home/node
-      - ${WORKSPACE_DIR:-./workspace}:/workspace
-      - ${SSH_KEY_DIR:-~/.ssh}:/tmp/ssh_key:ro
-    environment:
-      - GIT_USER_NAME
-      - GIT_USER_EMAIL
-      - CLAUDE_YOLO_MODE
-      - GIT_REPO_URL
-      - GIT_HOST_DOMAIN
-      - WORKSPACE_DIR
-      - SSH_KEY_DIR
-      - GH_TOKEN
+      # --- Language versioning via codex-universal ---
+      # Set these in your .env file or override here if needed to select specific language versions
+      # Examples:
+      - CODEX_ENV_PYTHON_VERSION=${CODEX_ENV_PYTHON_VERSION:-} # Default to system/codex default if not set in .env
+      - CODEX_ENV_NODE_VERSION=${CODEX_ENV_NODE_VERSION:-}
+      - CODEX_ENV_RUST_VERSION=${CODEX_ENV_RUST_VERSION:-}
+      - CODEX_ENV_GO_VERSION=${CODEX_ENV_GO_VERSION:-}
+      - CODEX_ENV_SWIFT_VERSION=${CODEX_ENV_SWIFT_VERSION:-}
     stdin_open: true
     tty: true
